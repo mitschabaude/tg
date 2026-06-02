@@ -37,7 +37,7 @@ export function runChatsList(args: string[], usage: () => never): void {
 }
 
 function parseChatsListOptions(args: string[], usage: () => never): ChatsListOptions {
-  let sessionName = "probe";
+  let sessionName = "default";
   let limit = 30;
   let json = false;
 
@@ -62,4 +62,3 @@ function parseChatsListOptions(args: string[], usage: () => never): ChatsListOpt
 
   return { sessionName, limit, json };
 }
-

@@ -8,6 +8,8 @@ from opentele.api import UseCurrentSession
 from opentele.td import TDesktop
 from opentele.td.account import StorageAccount
 
+from tdesktop_metadata import extract_telegram_desktop_metadata
+
 
 def use_auth_only_tdata_load() -> None:
     def start_auth_only(self: StorageAccount, local_key):
@@ -21,8 +23,9 @@ def use_auth_only_tdata_load() -> None:
     StorageAccount.start = start_auth_only
 
 
-async def probe(tdata: Path, session: Path, passcode: str | None) -> dict:
+async def import_session(tdata: Path, session: Path, passcode: str | None) -> dict:
     session.parent.mkdir(parents=True, exist_ok=True)
+    telegram_desktop = extract_telegram_desktop_metadata(tdata, passcode)
 
     use_auth_only_tdata_load()
     desktop = TDesktop(str(tdata), passcode=passcode)
@@ -42,6 +45,7 @@ async def probe(tdata: Path, session: Path, passcode: str | None) -> dict:
             "last_name": me.last_name,
             "phone_present": bool(getattr(me, "phone", None)),
             "session": str(session) + ".session",
+            "telegram_desktop": telegram_desktop,
         }
     finally:
         await client.disconnect()
@@ -54,7 +58,7 @@ def main() -> None:
     parser.add_argument("--passcode")
     args = parser.parse_args()
 
-    result = asyncio.run(probe(
+    result = asyncio.run(import_session(
         Path(args.tdata),
         Path(args.session),
         args.passcode,

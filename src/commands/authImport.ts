@@ -1,18 +1,31 @@
-import { chmodSync, cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { rootDir, expandHome } from "../paths.ts";
 import { runJsonHelper } from "../python.ts";
+import { sessionMetadataPath } from "../sessions.ts";
 
-type ProbeResult = {
+type ImportResult = {
   id: number;
   username: string | null;
   first_name: string | null;
   last_name: string | null;
   phone_present: boolean;
   session: string;
+  telegram_desktop: {
+    download_directory: {
+      path: string | null;
+      source: string;
+      available: boolean;
+    };
+    settings: {
+      download_path: string | null;
+      ask_download_path: boolean | null;
+      error: string | null;
+    };
+  };
 };
 
-type AuthProbeOptions = {
+type AuthImportOptions = {
   tdata: string;
   sessionName: string;
   passcode: string | undefined;
@@ -21,8 +34,8 @@ type AuthProbeOptions = {
 
 const defaultTdata = "~/snap/telegram-desktop/current/.local/share/TelegramDesktop/tdata";
 
-export function runAuthProbe(args: string[], usage: () => never): void {
-  const options = parseAuthProbeOptions(args, usage);
+export function runAuthImport(args: string[], usage: () => never): void {
+  const options = parseAuthImportOptions(args, usage);
 
   ensureReadableTdata(options.tdata);
 
@@ -38,14 +51,15 @@ export function runAuthProbe(args: string[], usage: () => never): void {
       errorOnExist: false,
     });
 
-    const parsed = runJsonHelper<ProbeResult>("scripts/auth_probe.py", [
+    const parsed = runJsonHelper<ImportResult>("scripts/import_tdesktop_session.py", [
       "--tdata", snapshot,
       "--session", sessionBase,
       ...(options.passcode ? ["--passcode", options.passcode] : []),
     ]);
 
     chmodSync(parsed.session, 0o600);
-    printProbeResult(parsed);
+    writeSessionMetadata(options.sessionName, parsed);
+    printImportResult(parsed);
     if (options.keepSnapshot) {
       console.log(`snapshot: ${snapshot}`);
     }
@@ -56,9 +70,9 @@ export function runAuthProbe(args: string[], usage: () => never): void {
   }
 }
 
-function parseAuthProbeOptions(args: string[], usage: () => never): AuthProbeOptions {
+function parseAuthImportOptions(args: string[], usage: () => never): AuthImportOptions {
   let tdata = defaultTdata;
-  let sessionName = "probe";
+  let sessionName = "default";
   let passcode: string | undefined;
   let keepSnapshot = false;
 
@@ -125,10 +139,21 @@ function ensurePrivateDir(path: string): void {
   chmodSync(path, 0o700);
 }
 
-function printProbeResult(result: ProbeResult): void {
+function printImportResult(result: ImportResult): void {
   const name = [result.first_name, result.last_name].filter(Boolean).join(" ");
   const username = result.username ? ` @${result.username}` : "";
   console.log(`logged in as ${name || "(unnamed)"}${username} user_id=${result.id}`);
   console.log(`session: ${result.session}`);
+  if (result.telegram_desktop.download_directory.path) {
+    console.log(`downloads: ${result.telegram_desktop.download_directory.path} (${result.telegram_desktop.download_directory.source})`);
+  }
   console.log(`phone_present: ${result.phone_present}`);
+}
+
+function writeSessionMetadata(sessionName: string, result: ImportResult): void {
+  const path = sessionMetadataPath(sessionName);
+  writeFileSync(path, JSON.stringify({
+    telegram_desktop: result.telegram_desktop,
+  }, null, 2));
+  chmodSync(path, 0o600);
 }
