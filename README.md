@@ -27,9 +27,7 @@ tg auth bootstrap
 
 By default this reads from the snap Telegram Desktop `tdata` path through a snapshot under `tmp/`, uses the Desktop authorization once to approve a QR-login token, and stores a separate Telethon session under `data/sessions/`. It also stores session metadata such as Telegram Desktop's effective downloads directory.
 
-This is intentionally different from directly reusing Telegram Desktop's auth key. Older experiments used `UseCurrentSession`, which made the agent session act as the same server-side authorization as Telegram Desktop. Do not use those shared-auth sessions for message queries; bootstrap a fresh `default.session` instead and retire old files such as `probe.session`.
-
-If Telegram Desktop appears to stop loading older uncached history after experiments, fully quitting and restarting Telegram Desktop is the first recovery step. In our test, older history reappeared after restart.
+This is intentionally different from directly reusing Telegram Desktop's auth key. The agent session should be a separate server-side authorization from Telegram Desktop, not a shared-auth session.
 
 ## Sync And Read
 
@@ -58,7 +56,7 @@ For `messages list`, offset is zero-based from newest message first: `--offset 1
 Plain text message output is compact and agent-friendly. When a known local attachment exists, it is rendered as:
 
 ```text
-[pdf: /home/gregor/Downloads/Telegram Desktop/example.pdf (404 KiB)]
+[pdf: /path/to/Telegram Desktop/example.pdf (404 KiB)]
 ```
 
 Use `--json` for full attachment metadata such as MIME type, Telegram file id, dimensions, download status, and `path_source`.

@@ -1,6 +1,6 @@
 ---
 name: tg
-description: Use Gregor's local Telegram CLI to inspect cached Telegram chats and messages. Use when asked to find, list, sync, or read Telegram history through the local `tg` command.
+description: Use the local Telegram CLI to inspect cached Telegram chats and messages. Use when asked to find, list, sync, or read Telegram history through the local `tg` command.
 ---
 
 # Telegram CLI
@@ -65,11 +65,11 @@ For `messages list`, offset is zero-based from newest message first: `--offset 1
 Plain text message output renders known local attachments compactly:
 
 ```text
-[pdf: /home/gregor/Downloads/Telegram Desktop/example.pdf (404 KiB)]
+[pdf: /path/to/Telegram Desktop/example.pdf (404 KiB)]
 ```
 
 Use `--json` for full attachment metadata such as MIME type, Telegram file id, dimensions, download status, and `path_source`.
 
 ## Safety
 
-Treat `tdata`, sessions, and `data/cache/*.sqlite` as sensitive account data. Do not write to production `tdata`. Do not use old shared-auth sessions such as `probe.session`; use the bootstrapped separate agent session.
+Treat `tdata`, sessions, and `data/cache/*.sqlite` as sensitive account data. Do not write to production `tdata`. Use the bootstrapped separate agent session rather than directly reusing Telegram Desktop authorization.
