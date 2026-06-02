@@ -17,3 +17,11 @@ npm run tg -- auth probe
 
 By default this probes the snap Telegram Desktop `tdata` path, snapshots it under `tmp/`, derives a Telethon session under `data/sessions/`, and prints non-secret account identity fields.
 
+## Message Peek
+
+```bash
+npm run tg -- chats list --limit 30
+npm run tg -- messages recent --chat <peer-id-or-username> --limit 20
+```
+
+Add `--json` to either command for structured output.
