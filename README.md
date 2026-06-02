@@ -2,17 +2,27 @@
 
 Local Telegram history access for agents.
 
-The goal is a local, read-only CLI/skill that lets an agent query Telegram history without interactive login. The initial direction is to bootstrap a separate API session from Telegram Desktop `tdata`, then sync accessible history into a local SQLite/FTS store for querying.
+The goal is a local, read-only CLI/skill that lets an agent query Telegram history without interactive login. It bootstraps a separate API session from Telegram Desktop `tdata`, syncs selected history into a local SQLite cache, and serves read commands from that cache.
 
 Own code is TypeScript. Python/other tools may still be used behind a small boundary if they are the best way to import or convert Telegram Desktop session data.
 
-## Auth Bootstrap
+## Setup
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 npm install
-npm run tg -- auth bootstrap
+npm link
+```
+
+`npm link` installs the `tg` command globally as a symlink to this checkout. Keep this checkout and its `.venv` in place; the CLI uses the repo-local Python environment.
+
+Requires a Node version with native TypeScript stripping support.
+
+## Auth Bootstrap
+
+```bash
+tg auth bootstrap
 ```
 
 By default this reads from the snap Telegram Desktop `tdata` path through a snapshot under `tmp/`, uses the Desktop authorization once to approve a QR-login token, and stores a separate Telethon session under `data/sessions/`. It also stores session metadata such as Telegram Desktop's effective downloads directory.
@@ -24,14 +34,15 @@ If Telegram Desktop appears to stop loading older uncached history after experim
 ## Sync And Read
 
 ```bash
-npm run tg -- sync chats --limit 100
-npm run tg -- sync messages --chat <peer-id-or-username> --limit 1000
-npm run tg -- sync messages --chat <peer-id-or-username> --offset 100 --limit 100
+tg sync chats --limit 100
+tg sync messages --chat <peer-id-or-username> --limit 1000
+tg sync messages --chat <peer-id-or-username> --offset 100 --limit 100
+tg sync messages --chat <peer-id-or-username> --full
 
-npm run tg -- chats list --limit 30
-npm run tg -- messages list --chat <peer-id-or-username> --limit 20
-npm run tg -- messages list --chat <peer-id-or-username> --offset 100 --limit 100
-npm run tg -- cache status
+tg chats list --limit 30
+tg messages list --chat <peer-id-or-username> --limit 20
+tg messages list --chat <peer-id-or-username> --offset 100 --limit 100
+tg cache status
 ```
 
 Network/API access is explicit and only happens under `tg sync ...`. `chats list`, `messages list`, and `cache status` read only the local SQLite cache. Add `--json` to read commands for structured output.
