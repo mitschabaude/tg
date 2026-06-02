@@ -1,5 +1,5 @@
-#!/usr/bin/env tsx
-import { runAuthProbe } from "./commands/authProbe.js";
+#!/usr/bin/env node
+import { runAuthProbe } from "./commands/authProbe.ts";
 
 function usage(): never {
   console.error(`Usage:

@@ -1,7 +1,7 @@
 import { chmodSync, cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { rootDir, expandHome } from "../paths.js";
-import { runJsonHelper } from "../python.js";
+import { rootDir, expandHome } from "../paths.ts";
+import { runJsonHelper } from "../python.ts";
 
 type ProbeResult = {
   id: number;

@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { rootDir } from "./paths.js";
+import { rootDir } from "./paths.ts";
 
 export function runJsonHelper<T>(script: string, args: string[]): T {
   const python = join(rootDir, ".venv", "bin", "python");
