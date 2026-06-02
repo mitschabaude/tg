@@ -8,7 +8,7 @@ export function readOption(args: string[], index: number, usage: () => never): s
 
 export function parseLimit(value: string, usage: () => never): number {
   const result = Number(value);
-  if (!Number.isInteger(result) || result < 1 || result > 500) {
+  if (!Number.isInteger(result) || result < 1 || result > 10000) {
     usage();
   }
   return result;

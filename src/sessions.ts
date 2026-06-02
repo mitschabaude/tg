@@ -30,6 +30,11 @@ export function sessionMetadataPath(name: string): string {
   return join(rootDir, "data", "sessions", `${safe}.metadata.json`);
 }
 
+export function cachePath(name: string): string {
+  const safe = sanitizeName(name, "session name");
+  return join(rootDir, "data", "cache", `${safe}.sqlite`);
+}
+
 export function readSessionMetadata(name: string): SessionMetadata | null {
   const path = sessionMetadataPath(name);
   if (!existsSync(path)) {

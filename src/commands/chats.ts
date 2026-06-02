@@ -1,6 +1,6 @@
 import { parseLimit, parseOffset, readOption } from "../args.ts";
 import { runJsonHelper } from "../python.ts";
-import { resolveSessionBase } from "../sessions.ts";
+import { cachePath } from "../sessions.ts";
 
 type ChatRow = {
   peer_id: number;
@@ -20,9 +20,9 @@ type ChatsListOptions = {
 
 export function runChatsList(args: string[], usage: () => never): void {
   const options = parseChatsListOptions(args, usage);
-  const rows = runJsonHelper<ChatRow[]>("scripts/telegram_peek.py", [
-    "chats-list",
-    "--session", resolveSessionBase(options.sessionName),
+  const rows = runJsonHelper<ChatRow[]>("scripts/telegram_cache.py", [
+    "list-chats",
+    "--db", cachePath(options.sessionName),
     "--limit", String(options.limit),
     "--offset", String(options.offset),
   ]);

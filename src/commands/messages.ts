@@ -1,6 +1,6 @@
 import { parseLimit, parseOffset, readOption } from "../args.ts";
 import { runJsonHelper } from "../python.ts";
-import { readSessionMetadata, resolveSessionBase } from "../sessions.ts";
+import { cachePath } from "../sessions.ts";
 
 type MessageRow = {
   id: number;
@@ -37,25 +37,16 @@ type MessagesRecentOptions = {
   limit: number;
   offset: number;
   json: boolean;
-  localFilesDir: string[];
-  localFilesDirSource: string | null;
-  downloadAttachments: boolean;
-  maxAttachmentMb: number;
 };
 
-export function runMessagesRecent(args: string[], usage: () => never): void {
+export function runMessagesList(args: string[], usage: () => never): void {
   const options = parseMessagesRecentOptions(args, usage);
-  const localFiles = resolveLocalFiles(options);
-  const rows = runJsonHelper<MessageRow[]>("scripts/telegram_peek.py", [
-    "messages-recent",
-    "--session", resolveSessionBase(options.sessionName),
+  const rows = runJsonHelper<MessageRow[]>("scripts/telegram_cache.py", [
+    "list-messages",
+    "--db", cachePath(options.sessionName),
     "--chat", options.chat,
     "--limit", String(options.limit),
     "--offset", String(options.offset),
-    ...localFiles.dirs.flatMap((dir) => ["--local-files-dir", dir]),
-    ...(localFiles.source ? ["--local-files-dir-source", localFiles.source] : []),
-    ...(options.downloadAttachments ? ["--download-attachments"] : []),
-    "--max-attachment-mb", String(options.maxAttachmentMb),
   ]);
 
   if (options.json) {
@@ -127,10 +118,6 @@ function parseMessagesRecentOptions(args: string[], usage: () => never): Message
   let limit = 20;
   let offset = 0;
   let json = false;
-  let localFilesDir: string[] = [];
-  let localFilesDirSource: string | null = null;
-  let downloadAttachments = false;
-  let maxAttachmentMb = 25;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -154,18 +141,6 @@ function parseMessagesRecentOptions(args: string[], usage: () => never): Message
       case "--json":
         json = true;
         break;
-      case "--local-files-dir":
-        localFilesDir = [readOption(args, index, usage)];
-        localFilesDirSource = "explicit_local_files_dir";
-        index += 1;
-        break;
-      case "--download-attachments":
-        downloadAttachments = true;
-        break;
-      case "--max-attachment-mb":
-        maxAttachmentMb = parseLimit(readOption(args, index, usage), usage);
-        index += 1;
-        break;
       default:
         usage();
     }
@@ -180,28 +155,5 @@ function parseMessagesRecentOptions(args: string[], usage: () => never): Message
     limit,
     offset,
     json,
-    localFilesDir,
-    localFilesDirSource,
-    downloadAttachments,
-    maxAttachmentMb,
-  };
-}
-
-function resolveLocalFiles(options: MessagesRecentOptions): { dirs: string[]; source: string | null } {
-  if (options.localFilesDir.length) {
-    return {
-      dirs: options.localFilesDir,
-      source: options.localFilesDirSource,
-    };
-  }
-
-  const metadata = readSessionMetadata(options.sessionName);
-  const downloadDirectory = metadata?.telegram_desktop?.download_directory;
-  if (!downloadDirectory?.available || !downloadDirectory.path) {
-    return { dirs: [], source: null };
-  }
-  return {
-    dirs: [downloadDirectory.path],
-    source: downloadDirectory.source,
   };
 }

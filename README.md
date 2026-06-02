@@ -21,16 +21,24 @@ This is intentionally different from directly reusing Telegram Desktop's auth ke
 
 If Telegram Desktop appears to stop loading older uncached history after experiments, fully quitting and restarting Telegram Desktop is the first recovery step. In our test, older history reappeared after restart.
 
-## Message Peek
+## Sync And Read
 
 ```bash
+npm run tg -- sync chats --limit 100
+npm run tg -- sync messages --chat <peer-id-or-username> --limit 1000
+npm run tg -- sync messages --chat <peer-id-or-username> --offset 100 --limit 100
+
 npm run tg -- chats list --limit 30
-npm run tg -- messages recent --chat <peer-id-or-username> --limit 20
-npm run tg -- messages recent --chat <peer-id-or-username> --offset 100 --limit 100
+npm run tg -- messages list --chat <peer-id-or-username> --limit 20
+npm run tg -- messages list --chat <peer-id-or-username> --offset 100 --limit 100
+npm run tg -- cache status
 ```
 
-Add `--json` to either command for structured output.
-For `messages recent`, offset is zero-based from newest message first: `--offset 100 --limit 100` returns messages 100 through 199. `chats list` also accepts `--offset` for paging dialog results.
+Network/API access is explicit and only happens under `tg sync ...`. `chats list`, `messages list`, and `cache status` read only the local SQLite cache. Add `--json` to read commands for structured output.
+
+For `--chat`, use the canonical `peer_id` printed by `tg chats list`. Do not drop the minus sign: private/group peer ids can be negative, and the positive Telegram object id is not accepted as an alias.
+
+For `messages list`, offset is zero-based from newest message first: `--offset 100 --limit 100` returns messages 100 through 199. `chats list` also accepts `--offset` for paging cached dialog results.
 
 Plain text message output is compact and agent-friendly. When a known local attachment exists, it is rendered as:
 
