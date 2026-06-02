@@ -23,7 +23,7 @@ def use_auth_only_tdata_load() -> None:
     StorageAccount.start = start_auth_only
 
 
-async def import_session(
+async def bootstrap_session(
     tdata: Path,
     session: Path,
     passcode: str | None,
@@ -65,7 +65,7 @@ def main() -> None:
     parser.add_argument("--password")
     args = parser.parse_args()
 
-    result = asyncio.run(import_session(
+    result = asyncio.run(bootstrap_session(
         Path(args.tdata),
         Path(args.session),
         args.passcode,

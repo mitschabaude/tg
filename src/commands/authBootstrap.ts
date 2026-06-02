@@ -4,7 +4,7 @@ import { rootDir, expandHome } from "../paths.ts";
 import { runJsonHelper } from "../python.ts";
 import { sessionMetadataPath } from "../sessions.ts";
 
-type ImportResult = {
+type BootstrapResult = {
   id: number;
   username: string | null;
   first_name: string | null;
@@ -25,7 +25,7 @@ type ImportResult = {
   };
 };
 
-type AuthImportOptions = {
+type AuthBootstrapOptions = {
   tdata: string;
   sessionName: string;
   passcode: string | undefined;
@@ -36,7 +36,7 @@ type AuthImportOptions = {
 const defaultTdata = "~/snap/telegram-desktop/current/.local/share/TelegramDesktop/tdata";
 
 export function runAuthBootstrap(args: string[], usage: () => never): void {
-  const options = parseAuthImportOptions(args, usage);
+  const options = parseAuthBootstrapOptions(args, usage);
 
   ensureReadableTdata(options.tdata);
 
@@ -52,7 +52,7 @@ export function runAuthBootstrap(args: string[], usage: () => never): void {
       errorOnExist: false,
     });
 
-    const parsed = runJsonHelper<ImportResult>("scripts/import_tdesktop_session.py", [
+    const parsed = runJsonHelper<BootstrapResult>("scripts/bootstrap_tdesktop_session.py", [
       "--tdata", snapshot,
       "--session", sessionBase,
       ...(options.passcode ? ["--passcode", options.passcode] : []),
@@ -61,7 +61,7 @@ export function runAuthBootstrap(args: string[], usage: () => never): void {
 
     chmodSync(parsed.session, 0o600);
     writeSessionMetadata(options.sessionName, parsed);
-    printImportResult(parsed);
+    printBootstrapResult(parsed);
     if (options.keepSnapshot) {
       console.log(`snapshot: ${snapshot}`);
     }
@@ -72,7 +72,7 @@ export function runAuthBootstrap(args: string[], usage: () => never): void {
   }
 }
 
-function parseAuthImportOptions(args: string[], usage: () => never): AuthImportOptions {
+function parseAuthBootstrapOptions(args: string[], usage: () => never): AuthBootstrapOptions {
   let tdata = defaultTdata;
   let sessionName = "default";
   let passcode: string | undefined;
@@ -147,7 +147,7 @@ function ensurePrivateDir(path: string): void {
   chmodSync(path, 0o700);
 }
 
-function printImportResult(result: ImportResult): void {
+function printBootstrapResult(result: BootstrapResult): void {
   const name = [result.first_name, result.last_name].filter(Boolean).join(" ");
   const username = result.username ? ` @${result.username}` : "";
   console.log(`logged in as ${name || "(unnamed)"}${username} user_id=${result.id}`);
@@ -158,7 +158,7 @@ function printImportResult(result: ImportResult): void {
   console.log(`phone_present: ${result.phone_present}`);
 }
 
-function writeSessionMetadata(sessionName: string, result: ImportResult): void {
+function writeSessionMetadata(sessionName: string, result: BootstrapResult): void {
   const path = sessionMetadataPath(sessionName);
   writeFileSync(path, JSON.stringify({
     telegram_desktop: result.telegram_desktop,

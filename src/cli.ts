@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runAuthBootstrap } from "./commands/authImport.ts";
+import { runAuthBootstrap } from "./commands/authBootstrap.ts";
 import { runChatsList } from "./commands/chats.ts";
 import { runMessagesRecent } from "./commands/messages.ts";
 
