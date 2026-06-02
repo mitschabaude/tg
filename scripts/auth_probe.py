@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+import argparse
+import asyncio
+import json
+from pathlib import Path
+
+from opentele.api import UseCurrentSession
+from opentele.td import TDesktop
+from opentele.td.account import StorageAccount
+
+
+def use_auth_only_tdata_load() -> None:
+    def start_auth_only(self: StorageAccount, local_key):
+        self._StorageAccount__localKey = local_key
+        self.readMtpData()
+        try:
+            return self.readMtpConfig()
+        except Exception:
+            return self.config
+
+    StorageAccount.start = start_auth_only
+
+
+async def probe(tdata: Path, session: Path, passcode: str | None) -> dict:
+    session.parent.mkdir(parents=True, exist_ok=True)
+
+    use_auth_only_tdata_load()
+    desktop = TDesktop(str(tdata), passcode=passcode)
+    client = await desktop.ToTelethon(
+        session=str(session),
+        flag=UseCurrentSession,
+        receive_updates=False,
+    )
+
+    await client.connect()
+    try:
+        me = await client.get_me()
+        return {
+            "id": me.id,
+            "username": me.username,
+            "first_name": me.first_name,
+            "last_name": me.last_name,
+            "phone_present": bool(getattr(me, "phone", None)),
+            "session": str(session) + ".session",
+        }
+    finally:
+        await client.disconnect()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--tdata", required=True)
+    parser.add_argument("--session", required=True)
+    parser.add_argument("--passcode")
+    args = parser.parse_args()
+
+    result = asyncio.run(probe(
+        Path(args.tdata),
+        Path(args.session),
+        args.passcode,
+    ))
+    print(json.dumps(result, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

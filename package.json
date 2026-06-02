@@ -3,12 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "tg": "./src/cli.ts"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "check": "tsc -p tsconfig.json --noEmit"
+    "check": "tsc -p tsconfig.json --noEmit",
+    "tg": "tsx src/cli.ts"
   },
   "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.4",
     "typescript": "^5.8.0"
   }
 }
-
