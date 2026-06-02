@@ -26,9 +26,11 @@ If Telegram Desktop appears to stop loading older uncached history after experim
 ```bash
 npm run tg -- chats list --limit 30
 npm run tg -- messages recent --chat <peer-id-or-username> --limit 20
+npm run tg -- messages recent --chat <peer-id-or-username> --offset 100 --limit 100
 ```
 
 Add `--json` to either command for structured output.
+For `messages recent`, offset is zero-based from newest message first: `--offset 100 --limit 100` returns messages 100 through 199. `chats list` also accepts `--offset` for paging dialog results.
 
 Plain text message output is compact and agent-friendly. When a known local attachment exists, it is rendered as:
 

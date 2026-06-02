@@ -1,4 +1,4 @@
-import { parseLimit, readOption } from "../args.ts";
+import { parseLimit, parseOffset, readOption } from "../args.ts";
 import { runJsonHelper } from "../python.ts";
 import { resolveSessionBase } from "../sessions.ts";
 
@@ -14,6 +14,7 @@ type ChatRow = {
 type ChatsListOptions = {
   sessionName: string;
   limit: number;
+  offset: number;
   json: boolean;
 };
 
@@ -23,6 +24,7 @@ export function runChatsList(args: string[], usage: () => never): void {
     "chats-list",
     "--session", resolveSessionBase(options.sessionName),
     "--limit", String(options.limit),
+    "--offset", String(options.offset),
   ]);
 
   if (options.json) {
@@ -39,6 +41,7 @@ export function runChatsList(args: string[], usage: () => never): void {
 function parseChatsListOptions(args: string[], usage: () => never): ChatsListOptions {
   let sessionName = "default";
   let limit = 30;
+  let offset = 0;
   let json = false;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -52,6 +55,10 @@ function parseChatsListOptions(args: string[], usage: () => never): ChatsListOpt
         limit = parseLimit(readOption(args, index, usage), usage);
         index += 1;
         break;
+      case "--offset":
+        offset = parseOffset(readOption(args, index, usage), usage);
+        index += 1;
+        break;
       case "--json":
         json = true;
         break;
@@ -60,5 +67,5 @@ function parseChatsListOptions(args: string[], usage: () => never): ChatsListOpt
     }
   }
 
-  return { sessionName, limit, json };
+  return { sessionName, limit, offset, json };
 }

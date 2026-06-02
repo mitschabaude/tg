@@ -1,4 +1,4 @@
-import { parseLimit, readOption } from "../args.ts";
+import { parseLimit, parseOffset, readOption } from "../args.ts";
 import { runJsonHelper } from "../python.ts";
 import { readSessionMetadata, resolveSessionBase } from "../sessions.ts";
 
@@ -35,6 +35,7 @@ type MessagesRecentOptions = {
   sessionName: string;
   chat: string;
   limit: number;
+  offset: number;
   json: boolean;
   localFilesDir: string[];
   localFilesDirSource: string | null;
@@ -50,6 +51,7 @@ export function runMessagesRecent(args: string[], usage: () => never): void {
     "--session", resolveSessionBase(options.sessionName),
     "--chat", options.chat,
     "--limit", String(options.limit),
+    "--offset", String(options.offset),
     ...localFiles.dirs.flatMap((dir) => ["--local-files-dir", dir]),
     ...(localFiles.source ? ["--local-files-dir-source", localFiles.source] : []),
     ...(options.downloadAttachments ? ["--download-attachments"] : []),
@@ -123,6 +125,7 @@ function parseMessagesRecentOptions(args: string[], usage: () => never): Message
   let sessionName = "default";
   let chat = "";
   let limit = 20;
+  let offset = 0;
   let json = false;
   let localFilesDir: string[] = [];
   let localFilesDirSource: string | null = null;
@@ -142,6 +145,10 @@ function parseMessagesRecentOptions(args: string[], usage: () => never): Message
         break;
       case "--limit":
         limit = parseLimit(readOption(args, index, usage), usage);
+        index += 1;
+        break;
+      case "--offset":
+        offset = parseOffset(readOption(args, index, usage), usage);
         index += 1;
         break;
       case "--json":
@@ -171,6 +178,7 @@ function parseMessagesRecentOptions(args: string[], usage: () => never): Message
     sessionName,
     chat,
     limit,
+    offset,
     json,
     localFilesDir,
     localFilesDirSource,

@@ -6,8 +6,8 @@ import { runMessagesRecent } from "./commands/messages.ts";
 function usage(): never {
   console.error(`Usage:
   tg auth bootstrap [--tdata PATH] [--session NAME] [--passcode PASSCODE] [--password TELEGRAM_2FA_PASSWORD] [--keep-snapshot]
-  tg chats list [--session NAME] [--limit N] [--json]
-  tg messages recent --chat CHAT [--session NAME] [--limit N] [--json] [--local-files-dir PATH] [--download-attachments] [--max-attachment-mb N]
+  tg chats list [--session NAME] [--limit N] [--offset N] [--json]
+  tg messages recent --chat CHAT [--session NAME] [--limit N] [--offset N] [--json] [--local-files-dir PATH] [--download-attachments] [--max-attachment-mb N]
 
 Default tdata path:
   ~/snap/telegram-desktop/current/.local/share/TelegramDesktop/tdata`);

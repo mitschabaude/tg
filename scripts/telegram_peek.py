@@ -63,7 +63,12 @@ async def chats_list(args: argparse.Namespace) -> list[dict[str, Any]]:
     client = await open_client(args.session)
     try:
         result = []
-        async for dialog in client.iter_dialogs(limit=args.limit):
+        index = 0
+        async for dialog in client.iter_dialogs(limit=args.limit + args.offset):
+            if index < args.offset:
+                index += 1
+                continue
+            index += 1
             entity = dialog.entity
             result.append({
                 "peer_id": utils.get_peer_id(entity),
@@ -241,7 +246,11 @@ async def messages_recent(args: argparse.Namespace) -> list[dict[str, Any]]:
     try:
         entity = await client.get_entity(parse_chat(args.chat))
         result = []
-        async for message in client.iter_messages(entity, limit=args.limit):
+        async for message in client.iter_messages(
+            entity,
+            limit=args.limit,
+            add_offset=args.offset,
+        ):
             attachments = message_attachments(message, args)
             await maybe_download_attachments(message, attachments, args)
             result.append({
@@ -274,11 +283,13 @@ def main() -> None:
     chats = subparsers.add_parser("chats-list")
     chats.add_argument("--session", required=True)
     chats.add_argument("--limit", type=int, default=30)
+    chats.add_argument("--offset", type=int, default=0)
 
     messages = subparsers.add_parser("messages-recent")
     messages.add_argument("--session", required=True)
     messages.add_argument("--chat", required=True)
     messages.add_argument("--limit", type=int, default=20)
+    messages.add_argument("--offset", type=int, default=0)
     messages.add_argument("--download-attachments", action="store_true")
     messages.add_argument("--download-dir", default="data/files")
     messages.add_argument("--max-attachment-mb", type=int, default=25)

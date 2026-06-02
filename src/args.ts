@@ -14,6 +14,14 @@ export function parseLimit(value: string, usage: () => never): number {
   return result;
 }
 
+export function parseOffset(value: string, usage: () => never): number {
+  const result = Number(value);
+  if (!Number.isInteger(result) || result < 0 || result > 100000) {
+    usage();
+  }
+  return result;
+}
+
 export function sanitizeName(name: string, label: string): string {
   if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
     console.error(`${label} may only contain letters, numbers, dot, underscore, and dash`);
@@ -21,4 +29,3 @@ export function sanitizeName(name: string, label: string): string {
   }
   return name;
 }
-
