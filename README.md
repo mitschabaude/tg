@@ -6,16 +6,20 @@ The goal is a local, read-only CLI/skill that lets an agent query Telegram histo
 
 Own code is TypeScript. Python/other tools may still be used behind a small boundary if they are the best way to import or convert Telegram Desktop session data.
 
-## Auth Import
+## Auth Bootstrap
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 npm install
-npm run tg -- auth import
+npm run tg -- auth bootstrap
 ```
 
-By default this imports from the snap Telegram Desktop `tdata` path, snapshots it under `tmp/`, derives a Telethon session under `data/sessions/`, stores session metadata, and prints non-secret account identity fields.
+By default this reads from the snap Telegram Desktop `tdata` path through a snapshot under `tmp/`, uses the Desktop authorization once to approve a QR-login token, and stores a separate Telethon session under `data/sessions/`. It also stores session metadata such as Telegram Desktop's effective downloads directory.
+
+This is intentionally different from directly reusing Telegram Desktop's auth key. Older experiments used `UseCurrentSession`, which made the agent session act as the same server-side authorization as Telegram Desktop. Do not use those shared-auth sessions for message queries; bootstrap a fresh `default.session` instead and retire old files such as `probe.session`.
+
+If Telegram Desktop appears to stop loading older uncached history after experiments, fully quitting and restarting Telegram Desktop is the first recovery step. In our test, older history reappeared after restart.
 
 ## Message Peek
 

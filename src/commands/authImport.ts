@@ -29,12 +29,13 @@ type AuthImportOptions = {
   tdata: string;
   sessionName: string;
   passcode: string | undefined;
+  password: string | undefined;
   keepSnapshot: boolean;
 };
 
 const defaultTdata = "~/snap/telegram-desktop/current/.local/share/TelegramDesktop/tdata";
 
-export function runAuthImport(args: string[], usage: () => never): void {
+export function runAuthBootstrap(args: string[], usage: () => never): void {
   const options = parseAuthImportOptions(args, usage);
 
   ensureReadableTdata(options.tdata);
@@ -55,6 +56,7 @@ export function runAuthImport(args: string[], usage: () => never): void {
       "--tdata", snapshot,
       "--session", sessionBase,
       ...(options.passcode ? ["--passcode", options.passcode] : []),
+      ...(options.password ? ["--password", options.password] : []),
     ]);
 
     chmodSync(parsed.session, 0o600);
@@ -74,6 +76,7 @@ function parseAuthImportOptions(args: string[], usage: () => never): AuthImportO
   let tdata = defaultTdata;
   let sessionName = "default";
   let passcode: string | undefined;
+  let password: string | undefined;
   let keepSnapshot = false;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -91,6 +94,10 @@ function parseAuthImportOptions(args: string[], usage: () => never): AuthImportO
         passcode = readValue(args, index, usage);
         index += 1;
         break;
+      case "--password":
+        password = readValue(args, index, usage);
+        index += 1;
+        break;
       case "--keep-snapshot":
         keepSnapshot = true;
         break;
@@ -103,6 +110,7 @@ function parseAuthImportOptions(args: string[], usage: () => never): AuthImportO
     tdata: resolve(expandHome(tdata)),
     sessionName: sanitizeSessionName(sessionName),
     passcode,
+    password,
     keepSnapshot,
   };
 }
@@ -143,7 +151,7 @@ function printImportResult(result: ImportResult): void {
   const name = [result.first_name, result.last_name].filter(Boolean).join(" ");
   const username = result.username ? ` @${result.username}` : "";
   console.log(`logged in as ${name || "(unnamed)"}${username} user_id=${result.id}`);
-  console.log(`session: ${result.session}`);
+  console.log(`bootstrapped session: ${result.session}`);
   if (result.telegram_desktop.download_directory.path) {
     console.log(`downloads: ${result.telegram_desktop.download_directory.path} (${result.telegram_desktop.download_directory.source})`);
   }

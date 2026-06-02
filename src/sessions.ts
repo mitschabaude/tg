@@ -19,7 +19,7 @@ export function resolveSessionBase(name: string): string {
   const file = `${base}.session`;
   if (!existsSync(file)) {
     console.error(`session not found: ${file}`);
-    console.error("run: npm run tg -- auth import");
+    console.error("run: npm run tg -- auth bootstrap");
     process.exit(1);
   }
   return base;
