@@ -79,6 +79,7 @@ function parseSyncMessagesOptions(args: string[], usage: () => never): SyncMessa
   let sessionName = "default";
   let chat = "";
   let limit = 100;
+  let limitSet = false;
   let offset = 0;
   let full = false;
 
@@ -95,6 +96,7 @@ function parseSyncMessagesOptions(args: string[], usage: () => never): SyncMessa
         break;
       case "--limit":
         limit = parseLimit(readOption(args, index, usage), usage);
+        limitSet = true;
         index += 1;
         break;
       case "--offset":
@@ -111,6 +113,10 @@ function parseSyncMessagesOptions(args: string[], usage: () => never): SyncMessa
 
   if (!chat) {
     usage();
+  }
+  if (full && limitSet) {
+    console.error("--full cannot be combined with --limit");
+    process.exit(2);
   }
   return { sessionName, chat, limit, offset, full };
 }

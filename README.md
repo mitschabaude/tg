@@ -36,6 +36,10 @@ npm run tg -- cache status
 
 Network/API access is explicit and only happens under `tg sync ...`. `chats list`, `messages list`, and `cache status` read only the local SQLite cache. Add `--json` to read commands for structured output.
 
+The cache is sensitive account data. Sync creates `data/cache/` with `0700` permissions and SQLite files with `0600` permissions. Pure read commands do not create or initialize a missing cache; they print the relevant `tg sync ...` hint instead.
+
+`sync messages --full --offset N` means sync all older messages after skipping the newest `N`. `--full` cannot be combined with `--limit`.
+
 For `--chat`, use the canonical `peer_id` printed by `tg chats list`. Do not drop the minus sign: private/group peer ids can be negative, and the positive Telegram object id is not accepted as an alias.
 
 For `messages list`, offset is zero-based from newest message first: `--offset 100 --limit 100` returns messages 100 through 199. `chats list` also accepts `--offset` for paging cached dialog results.

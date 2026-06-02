@@ -42,12 +42,29 @@ async def open_client(session: str) -> TelegramClient:
 
 
 def connect(db_path: str) -> sqlite3.Connection:
+    return connect_write(db_path)
+
+
+def connect_write(db_path: str) -> sqlite3.Connection:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.chmod(0o700)
     db = sqlite3.connect(path)
+    path.chmod(0o600)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys = ON")
     ensure_schema(db)
+    migrate_schema(db)
+    return db
+
+
+def connect_read(db_path: str) -> sqlite3.Connection:
+    path = Path(db_path)
+    if not path.exists():
+        raise RuntimeError("cache is empty; run: npm run tg -- sync chats")
+    db = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA foreign_keys = ON")
     return db
 
 
@@ -64,7 +81,7 @@ def ensure_schema(db: sqlite3.Connection) -> None:
             last_message_date TEXT,
             dialog_order INTEGER,
             synced_at TEXT NOT NULL,
-            raw_json TEXT NOT NULL
+            normalized_json TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS messages (
@@ -78,7 +95,7 @@ def ensure_schema(db: sqlite3.Connection) -> None:
             post INTEGER NOT NULL,
             reply_to_msg_id INTEGER,
             fetched_at TEXT NOT NULL,
-            raw_json TEXT NOT NULL,
+            normalized_json TEXT NOT NULL,
             PRIMARY KEY (chat_peer_id, id)
         );
 
@@ -100,7 +117,7 @@ def ensure_schema(db: sqlite3.Connection) -> None:
             download_skipped TEXT,
             download_error TEXT,
             path_source TEXT,
-            raw_json TEXT NOT NULL,
+            normalized_json TEXT NOT NULL,
             PRIMARY KEY (chat_peer_id, message_id, idx),
             FOREIGN KEY (chat_peer_id, message_id)
                 REFERENCES messages(chat_peer_id, id)
@@ -121,6 +138,18 @@ def ensure_schema(db: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS chats_username_idx
             ON chats(username);
     """)
+
+
+def migrate_schema(db: sqlite3.Connection) -> None:
+    rename_column_if_exists(db, "chats", "raw_json", "normalized_json")
+    rename_column_if_exists(db, "messages", "raw_json", "normalized_json")
+    rename_column_if_exists(db, "attachments", "raw_json", "normalized_json")
+
+
+def rename_column_if_exists(db: sqlite3.Connection, table: str, old: str, new: str) -> None:
+    columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
+    if old in columns and new not in columns:
+        db.execute(f"ALTER TABLE {table} RENAME COLUMN {old} TO {new}")
 
 
 def now_iso() -> str:
@@ -286,7 +315,7 @@ def upsert_chat(db: sqlite3.Connection, row: dict[str, Any]) -> None:
     db.execute("""
         INSERT INTO chats (
             peer_id, id, type, title, username, unread_count,
-            last_message_id, last_message_date, dialog_order, synced_at, raw_json
+            last_message_id, last_message_date, dialog_order, synced_at, normalized_json
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(peer_id) DO UPDATE SET
             id = excluded.id,
@@ -301,7 +330,7 @@ def upsert_chat(db: sqlite3.Connection, row: dict[str, Any]) -> None:
             last_message_date = COALESCE(excluded.last_message_date, chats.last_message_date),
             dialog_order = COALESCE(excluded.dialog_order, chats.dialog_order),
             synced_at = excluded.synced_at,
-            raw_json = excluded.raw_json
+            normalized_json = excluded.normalized_json
     """, (
         row["peer_id"],
         row["id"],
@@ -337,7 +366,7 @@ def upsert_message(db: sqlite3.Connection, row: dict[str, Any]) -> None:
     db.execute("""
         INSERT INTO messages (
             chat_peer_id, id, date, edit_date, sender_id, text, out, post,
-            reply_to_msg_id, fetched_at, raw_json
+            reply_to_msg_id, fetched_at, normalized_json
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(chat_peer_id, id) DO UPDATE SET
             date = excluded.date,
@@ -348,7 +377,7 @@ def upsert_message(db: sqlite3.Connection, row: dict[str, Any]) -> None:
             post = excluded.post,
             reply_to_msg_id = excluded.reply_to_msg_id,
             fetched_at = excluded.fetched_at,
-            raw_json = excluded.raw_json
+            normalized_json = excluded.normalized_json
     """, (
         row["chat_peer_id"],
         row["id"],
@@ -371,7 +400,7 @@ def upsert_message(db: sqlite3.Connection, row: dict[str, Any]) -> None:
             INSERT INTO attachments (
                 chat_peer_id, message_id, idx, kind, name, mime_type, size,
                 ext, file_id, width, height, duration, path, downloaded,
-                download_skipped, download_error, path_source, raw_json
+                download_skipped, download_error, path_source, normalized_json
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             row["chat_peer_id"],
@@ -396,7 +425,7 @@ def upsert_message(db: sqlite3.Connection, row: dict[str, Any]) -> None:
 
 
 async def sync_chats(args: argparse.Namespace) -> dict[str, Any]:
-    db = connect(args.db)
+    db = connect_write(args.db)
     client = await open_client(args.session)
     synced_at = now_iso()
     count = 0
@@ -416,7 +445,7 @@ async def sync_chats(args: argparse.Namespace) -> dict[str, Any]:
 
 
 async def sync_messages(args: argparse.Namespace) -> dict[str, Any]:
-    db = connect(args.db)
+    db = connect_write(args.db)
     client = await open_client(args.session)
     fetched_at = now_iso()
     count = 0
@@ -459,7 +488,7 @@ def validate_peer_id_argument(value: str, peer_id: int) -> None:
 
 
 def list_chats(args: argparse.Namespace) -> list[dict[str, Any]]:
-    db = connect(args.db)
+    db = connect_read(args.db)
     try:
         if scalar(db, "SELECT COUNT(*) FROM chats") == 0:
             raise RuntimeError("cache is empty; run: npm run tg -- sync chats")
@@ -479,7 +508,7 @@ def list_chats(args: argparse.Namespace) -> list[dict[str, Any]]:
 
 
 def list_messages(args: argparse.Namespace) -> list[dict[str, Any]]:
-    db = connect(args.db)
+    db = connect_read(args.db)
     try:
         chat_peer_id = resolve_cached_chat(db, args.chat)
         rows = db.execute("""
@@ -552,7 +581,20 @@ def message_from_db(db: sqlite3.Connection, chat_peer_id: int, row: sqlite3.Row)
 
 
 def cache_status(args: argparse.Namespace) -> dict[str, Any]:
-    db = connect(args.db)
+    if not Path(args.db).exists():
+        return {
+            "db": args.db,
+            "chats": {
+                "count": 0,
+                "synced_at": None,
+            },
+            "messages": {
+                "count": 0,
+                "chats": [],
+            },
+        }
+
+    db = connect_read(args.db)
     try:
         chat_count = scalar(db, "SELECT COUNT(*) FROM chats")
         message_count = scalar(db, "SELECT COUNT(*) FROM messages")
