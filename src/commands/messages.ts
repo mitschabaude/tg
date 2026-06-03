@@ -92,10 +92,10 @@ function formatMessage(row: MessageRow): string {
     lines.push(...wrapText(text, width, "  "));
   }
   lines.push(...formatAttachments(row.attachments).flatMap((attachment) =>
-    wrapText(attachment, width, "  ")));
+    wrapText(attachment, width, "")));
   const reactions = formatReactions(row);
   if (reactions) {
-    lines.push(...wrapText(reactions, width, "  "));
+    lines.push(...wrapText(reactions, width, ""));
   }
   return lines.join("\n");
 }
@@ -116,6 +116,13 @@ function bold(text: string): string {
     return text;
   }
   return `\x1b[1m${text}\x1b[22m`;
+}
+
+function italic(text: string): string {
+  if (!supportsAnsiStyle()) {
+    return text;
+  }
+  return `\x1b[3m${text}\x1b[23m`;
 }
 
 function supportsAnsiStyle(): boolean {
@@ -174,8 +181,8 @@ function formatAttachments(attachments: AttachmentRow[]): string[] {
     const path = attachment.path ? "" : formatPath(attachment);
     const suffix = [details ? `(${details})` : "", path].filter(Boolean).join(" ");
     return suffix
-      ? `attachment: ${attachment.kind} ${name} ${suffix}`
-      : `attachment: ${attachment.kind} ${name}`;
+      ? `${italic("attachment")}: ${attachment.kind} ${name} ${suffix}`
+      : `${italic("attachment")}: ${attachment.kind} ${name}`;
   });
 }
 
@@ -193,15 +200,15 @@ function formatReactions(row: MessageRow): string {
     return `${reactor} ${formatReactionValue(reaction)}`;
   });
   if (row.reactions_complete && recent.length) {
-    return `reactions: ${recent.join(", ")}`;
+    return `${italic("reactions")}: ${recent.join(", ")}`;
   }
 
   const counts = row.reaction_counts.map((reaction) =>
     `${formatReactionValue(reaction)}x${reaction.count}`);
   if (recent.length) {
-    return `reactions: ${recent.join(", ")}; ${counts.join(" ")}`;
+    return `${italic("reactions")}: ${recent.join(", ")}; ${counts.join(" ")}`;
   }
-  return `reactions: ${counts.join(" ")}`;
+  return `${italic("reactions")}: ${counts.join(" ")}`;
 }
 
 function formatReactionValue(reaction: ReactionCountRow | RecentReactionRow): string {
