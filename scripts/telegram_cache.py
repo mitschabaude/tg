@@ -91,6 +91,16 @@ def ensure_schema(db: sqlite3.Connection) -> None:
             normalized_json TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS peers (
+            peer_id INTEGER PRIMARY KEY,
+            id INTEGER,
+            type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            username TEXT,
+            synced_at TEXT NOT NULL,
+            normalized_json TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS messages (
             chat_peer_id INTEGER NOT NULL,
             id INTEGER NOT NULL,
@@ -179,6 +189,8 @@ def ensure_schema(db: sqlite3.Connection) -> None:
             ON messages(chat_peer_id, date DESC, id DESC);
         CREATE INDEX IF NOT EXISTS chats_username_idx
             ON chats(username);
+        CREATE INDEX IF NOT EXISTS peers_username_idx
+            ON peers(username);
         CREATE INDEX IF NOT EXISTS message_recent_reactions_reactor_idx
             ON message_recent_reactions(reactor_peer_id);
     """)
@@ -223,6 +235,17 @@ def entity_type(entity: Any) -> str:
     if isinstance(entity, Chat):
         return "group"
     return type(entity).__name__
+
+
+def entity_row(entity: Any, synced_at: str) -> dict[str, Any]:
+    return {
+        "peer_id": utils.get_peer_id(entity),
+        "id": getattr(entity, "id", None),
+        "type": entity_type(entity),
+        "title": entity_title(entity),
+        "username": getattr(entity, "username", None),
+        "synced_at": synced_at,
+    }
 
 
 def media_kind(message: Any) -> str:
@@ -478,6 +501,37 @@ def upsert_chat(db: sqlite3.Connection, row: dict[str, Any]) -> None:
         row["synced_at"],
         json.dumps(row, ensure_ascii=False),
     ))
+    upsert_peer(db, {
+        "peer_id": row["peer_id"],
+        "id": row["id"],
+        "type": row["type"],
+        "title": row["title"],
+        "username": row["username"],
+        "synced_at": row["synced_at"],
+    })
+
+
+def upsert_peer(db: sqlite3.Connection, row: dict[str, Any]) -> None:
+    db.execute("""
+        INSERT INTO peers (
+            peer_id, id, type, title, username, synced_at, normalized_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(peer_id) DO UPDATE SET
+            id = excluded.id,
+            type = excluded.type,
+            title = excluded.title,
+            username = excluded.username,
+            synced_at = excluded.synced_at,
+            normalized_json = excluded.normalized_json
+    """, (
+        row["peer_id"],
+        row["id"],
+        row["type"],
+        row["title"],
+        row["username"],
+        row["synced_at"],
+        json.dumps(row, ensure_ascii=False),
+    ))
 
 
 def message_row(
@@ -654,6 +708,8 @@ async def sync_messages(args: argparse.Namespace) -> dict[str, Any]:
                 args.local_files_dir,
                 args.local_files_dir_source,
             )
+            if message.sender:
+                upsert_peer(db, entity_row(message.sender, fetched_at))
             upsert_message(db, message_row(
                 peer_id,
                 message,
@@ -740,6 +796,7 @@ def resolve_cached_chat(db: sqlite3.Connection, value: str) -> int:
 
 
 def message_from_db(db: sqlite3.Connection, chat_peer_id: int, row: sqlite3.Row) -> dict[str, Any]:
+    sender = peer_from_db(db, row["sender_id"])
     attachments = db.execute("""
         SELECT idx, kind, name, mime_type, size, ext, file_id, width, height,
             duration, path, downloaded, download_skipped, download_error, path_source
@@ -753,18 +810,14 @@ def message_from_db(db: sqlite3.Connection, chat_peer_id: int, row: sqlite3.Row)
         WHERE chat_peer_id = ? AND message_id = ?
         ORDER BY idx ASC
     """, (chat_peer_id, row["id"])).fetchall() if table_exists(db, "message_reaction_counts") else []
-    recent_reactions = db.execute("""
-        SELECT idx, reactor_peer_id, reaction_kind, emoticon,
-            custom_emoji_document_id, date, big, unread, my
-        FROM message_recent_reactions
-        WHERE chat_peer_id = ? AND message_id = ?
-        ORDER BY idx ASC
-    """, (chat_peer_id, row["id"])).fetchall() if table_exists(db, "message_recent_reactions") else []
+    recent_reactions = recent_reactions_from_db(db, chat_peer_id, row["id"])
     reactions_complete = reactions_are_complete(reaction_counts, recent_reactions)
     return {
         "id": row["id"],
         "date": row["date"],
         "sender_id": row["sender_id"],
+        "sender_title": sender["title"] if sender else None,
+        "sender_username": sender["username"] if sender else None,
         "text": row["text"],
         "out": bool(row["out"]),
         "post": bool(row["post"]),
@@ -797,6 +850,8 @@ def message_from_db(db: sqlite3.Connection, chat_peer_id: int, row: sqlite3.Row)
         "recent_reactions": [{
             "index": reaction["idx"],
             "reactor_peer_id": reaction["reactor_peer_id"],
+            "reactor_title": reaction["reactor_title"],
+            "reactor_username": reaction["reactor_username"],
             "kind": reaction["reaction_kind"],
             "emoticon": reaction["emoticon"],
             "custom_emoji_document_id": string_or_none(reaction["custom_emoji_document_id"]),
@@ -807,6 +862,42 @@ def message_from_db(db: sqlite3.Connection, chat_peer_id: int, row: sqlite3.Row)
         } for reaction in recent_reactions],
         "reactions_complete": reactions_complete,
     }
+
+
+def peer_from_db(db: sqlite3.Connection, peer_id: int | None) -> sqlite3.Row | None:
+    if peer_id is None or not table_exists(db, "peers"):
+        return None
+    return db.execute(
+        "SELECT title, username FROM peers WHERE peer_id = ?",
+        (peer_id,),
+    ).fetchone()
+
+
+def recent_reactions_from_db(
+    db: sqlite3.Connection,
+    chat_peer_id: int,
+    message_id: int,
+) -> list[sqlite3.Row]:
+    if not table_exists(db, "message_recent_reactions"):
+        return []
+    if table_exists(db, "peers"):
+        return db.execute("""
+            SELECT r.idx, r.reactor_peer_id, p.title AS reactor_title,
+                p.username AS reactor_username, r.reaction_kind, r.emoticon,
+                custom_emoji_document_id, date, big, unread, my
+            FROM message_recent_reactions r
+            LEFT JOIN peers p ON p.peer_id = r.reactor_peer_id
+            WHERE r.chat_peer_id = ? AND r.message_id = ?
+            ORDER BY r.idx ASC
+        """, (chat_peer_id, message_id)).fetchall()
+    return db.execute("""
+        SELECT idx, reactor_peer_id, NULL AS reactor_title,
+            NULL AS reactor_username, reaction_kind, emoticon,
+            custom_emoji_document_id, date, big, unread, my
+        FROM message_recent_reactions
+        WHERE chat_peer_id = ? AND message_id = ?
+        ORDER BY idx ASC
+    """, (chat_peer_id, message_id)).fetchall()
 
 
 def reactions_are_complete(
@@ -843,6 +934,9 @@ def cache_status(args: argparse.Namespace) -> dict[str, Any]:
                 "count": 0,
                 "synced_at": None,
             },
+            "peers": {
+                "count": 0,
+            },
             "messages": {
                 "count": 0,
                 "chats": [],
@@ -852,6 +946,7 @@ def cache_status(args: argparse.Namespace) -> dict[str, Any]:
     db = connect_read(args.db)
     try:
         chat_count = scalar(db, "SELECT COUNT(*) FROM chats")
+        peer_count = scalar(db, "SELECT COUNT(*) FROM peers") if table_exists(db, "peers") else 0
         message_count = scalar(db, "SELECT COUNT(*) FROM messages")
         chats_synced_at = state_value(db, "chats_synced_at")
         message_chats = db.execute("""
@@ -869,6 +964,9 @@ def cache_status(args: argparse.Namespace) -> dict[str, Any]:
             "chats": {
                 "count": chat_count,
                 "synced_at": chats_synced_at,
+            },
+            "peers": {
+                "count": peer_count,
             },
             "messages": {
                 "count": message_count,

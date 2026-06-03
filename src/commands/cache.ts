@@ -8,6 +8,9 @@ type CacheStatus = {
     count: number;
     synced_at: string | null;
   };
+  peers: {
+    count: number;
+  };
   messages: {
     count: number;
     chats: Array<{
@@ -35,6 +38,7 @@ export function runCacheStatus(args: string[], usage: () => never): void {
 
   console.log(`db: ${status.db}`);
   console.log(`chats: ${status.chats.count}${status.chats.synced_at ? ` synced_at=${status.chats.synced_at}` : ""}`);
+  console.log(`peers: ${status.peers.count}`);
   console.log(`messages: ${status.messages.count}`);
   for (const chat of status.messages.chats) {
     const title = chat.title ? ` ${chat.title}` : "";

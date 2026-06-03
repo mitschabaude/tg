@@ -6,6 +6,8 @@ type MessageRow = {
   id: number;
   date: string | null;
   sender_id: number | null;
+  sender_title: string | null;
+  sender_username: string | null;
   text: string;
   out: boolean;
   post: boolean;
@@ -46,6 +48,8 @@ type ReactionCountRow = {
 type RecentReactionRow = {
   index: number;
   reactor_peer_id: number | null;
+  reactor_title: string | null;
+  reactor_username: string | null;
   kind: string;
   emoticon: string | null;
   custom_emoji_document_id: string | null;
@@ -78,7 +82,7 @@ export function runMessagesList(args: string[], usage: () => never): void {
   } else {
     for (const row of rows) {
       const date = row.date ?? "";
-      const sender = row.sender_id ? ` sender=${row.sender_id}` : "";
+      const sender = formatSender(row);
       const reply = row.reply_to_msg_id ? ` reply=${row.reply_to_msg_id}` : "";
       const text = row.text.replace(/\s+/g, " ").trim();
       const attachments = formatAttachments(row.attachments);
@@ -86,6 +90,27 @@ export function runMessagesList(args: string[], usage: () => never): void {
       console.log(`${row.id}\t${date}${sender}${reply}\t${[text, attachments, reactions].filter(Boolean).join(" ")}`);
     }
   }
+}
+
+function formatSender(row: MessageRow): string {
+  if (!row.sender_id) {
+    return "";
+  }
+  const label = formatPeer(row.sender_id, row.sender_title, row.sender_username);
+  return ` sender=${label}`;
+}
+
+function formatPeer(peerId: number | null, title: string | null, username: string | null): string {
+  if (title && username) {
+    return `${title} (@${username})`;
+  }
+  if (title) {
+    return title;
+  }
+  if (username) {
+    return `@${username}`;
+  }
+  return peerId === null ? "?" : String(peerId);
 }
 
 function formatAttachments(attachments: AttachmentRow[]): string {
@@ -114,7 +139,11 @@ function formatReactions(row: MessageRow): string {
   }
 
   const recent = row.recent_reactions.map((reaction) => {
-    const reactor = reaction.reactor_peer_id ?? "?";
+    const reactor = formatPeer(
+      reaction.reactor_peer_id,
+      reaction.reactor_title,
+      reaction.reactor_username,
+    );
     return `${reactor} ${formatReactionValue(reaction)}`;
   });
   if (row.reactions_complete && recent.length) {
