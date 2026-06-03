@@ -70,6 +70,8 @@ Plain text message output renders known local attachments compactly:
 
 Use `--json` for full attachment metadata such as MIME type, Telegram file id, dimensions, download status, and `path_source`.
 
+Message sync stores reaction counts and Telegram's embedded recent reactor list. Small reaction sets may include individual reactors; larger sets may only include aggregate counts.
+
 ## Safety
 
 Treat `tdata`, sessions, and `data/cache/*.sqlite` as sensitive account data. Do not write to production `tdata`. Use the bootstrapped separate agent session rather than directly reusing Telegram Desktop authorization.

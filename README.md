@@ -60,3 +60,5 @@ Plain text message output is compact and agent-friendly. When a known local atta
 ```
 
 Use `--json` for full attachment metadata such as MIME type, Telegram file id, dimensions, download status, and `path_source`.
+
+Message sync also stores reaction counts and Telegram's embedded recent reactor list. This mirrors Telegram Desktop's default message display: small reaction sets can include the individual reactors, while larger sets may only include aggregate counts unless Telegram includes recent reactor details in the message payload.

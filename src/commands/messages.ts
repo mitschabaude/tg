@@ -11,6 +11,9 @@ type MessageRow = {
   post: boolean;
   reply_to_msg_id: number | null;
   attachments: AttachmentRow[];
+  reaction_counts: ReactionCountRow[];
+  recent_reactions: RecentReactionRow[];
+  reactions_complete: boolean;
 };
 
 type AttachmentRow = {
@@ -29,6 +32,27 @@ type AttachmentRow = {
   download_skipped: string | null;
   download_error: string | null;
   path_source: string | null;
+};
+
+type ReactionCountRow = {
+  index: number;
+  kind: string;
+  emoticon: string | null;
+  custom_emoji_document_id: string | null;
+  count: number;
+  chosen_order: number | null;
+};
+
+type RecentReactionRow = {
+  index: number;
+  reactor_peer_id: number | null;
+  kind: string;
+  emoticon: string | null;
+  custom_emoji_document_id: string | null;
+  date: string | null;
+  big: boolean;
+  unread: boolean;
+  my: boolean;
 };
 
 type MessagesRecentOptions = {
@@ -58,7 +82,8 @@ export function runMessagesList(args: string[], usage: () => never): void {
       const reply = row.reply_to_msg_id ? ` reply=${row.reply_to_msg_id}` : "";
       const text = row.text.replace(/\s+/g, " ").trim();
       const attachments = formatAttachments(row.attachments);
-      console.log(`${row.id}\t${date}${sender}${reply}\t${[text, attachments].filter(Boolean).join(" ")}`);
+      const reactions = formatReactions(row);
+      console.log(`${row.id}\t${date}${sender}${reply}\t${[text, attachments, reactions].filter(Boolean).join(" ")}`);
     }
   }
 }
@@ -81,6 +106,40 @@ function formatAttachments(attachments: AttachmentRow[]): string {
       ? `[${attachment.kind}: ${name} ${suffix}]`
       : `[${attachment.kind}: ${name}]`;
   }).join(" ");
+}
+
+function formatReactions(row: MessageRow): string {
+  if (!row.reaction_counts.length) {
+    return "";
+  }
+
+  const recent = row.recent_reactions.map((reaction) => {
+    const reactor = reaction.reactor_peer_id ?? "?";
+    return `${reactor} ${formatReactionValue(reaction)}`;
+  });
+  if (row.reactions_complete && recent.length) {
+    return `reactions=[${recent.join(", ")}]`;
+  }
+
+  const counts = row.reaction_counts.map((reaction) =>
+    `${formatReactionValue(reaction)}x${reaction.count}`);
+  if (recent.length) {
+    return `reactions=[${recent.join(", ")}; ${counts.join(" ")}]`;
+  }
+  return `reactions=[${counts.join(" ")}]`;
+}
+
+function formatReactionValue(reaction: ReactionCountRow | RecentReactionRow): string {
+  if (reaction.emoticon) {
+    return reaction.emoticon;
+  }
+  if (reaction.kind === "custom_emoji") {
+    return `custom:${reaction.custom_emoji_document_id ?? "?"}`;
+  }
+  if (reaction.kind === "paid") {
+    return "paid";
+  }
+  return reaction.kind;
 }
 
 function formatPath(attachment: AttachmentRow): string {

@@ -20,6 +20,13 @@ from telethon.tl.types import (
     MessageMediaPhoto,
     MessageMediaPoll,
     MessageMediaVenue,
+    PeerChannel,
+    PeerChat,
+    PeerUser,
+    ReactionCustomEmoji,
+    ReactionEmoji,
+    ReactionEmpty,
+    ReactionPaid,
     User,
 )
 
@@ -124,6 +131,41 @@ def ensure_schema(db: sqlite3.Connection) -> None:
                 ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS message_reaction_counts (
+            chat_peer_id INTEGER NOT NULL,
+            message_id INTEGER NOT NULL,
+            idx INTEGER NOT NULL,
+            kind TEXT NOT NULL,
+            emoticon TEXT,
+            custom_emoji_document_id TEXT,
+            count INTEGER NOT NULL,
+            chosen_order INTEGER,
+            normalized_json TEXT NOT NULL,
+            PRIMARY KEY (chat_peer_id, message_id, idx),
+            FOREIGN KEY (chat_peer_id, message_id)
+                REFERENCES messages(chat_peer_id, id)
+                ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS message_recent_reactions (
+            chat_peer_id INTEGER NOT NULL,
+            message_id INTEGER NOT NULL,
+            idx INTEGER NOT NULL,
+            reactor_peer_id INTEGER,
+            reaction_kind TEXT NOT NULL,
+            emoticon TEXT,
+            custom_emoji_document_id TEXT,
+            date TEXT,
+            big INTEGER NOT NULL,
+            unread INTEGER NOT NULL,
+            my INTEGER NOT NULL,
+            normalized_json TEXT NOT NULL,
+            PRIMARY KEY (chat_peer_id, message_id, idx),
+            FOREIGN KEY (chat_peer_id, message_id)
+                REFERENCES messages(chat_peer_id, id)
+                ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS sync_state (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
@@ -137,6 +179,8 @@ def ensure_schema(db: sqlite3.Connection) -> None:
             ON messages(chat_peer_id, date DESC, id DESC);
         CREATE INDEX IF NOT EXISTS chats_username_idx
             ON chats(username);
+        CREATE INDEX IF NOT EXISTS message_recent_reactions_reactor_idx
+            ON message_recent_reactions(reactor_peer_id);
     """)
 
 
@@ -295,6 +339,96 @@ def safe_filename(value: str | None, fallback: str) -> str:
     return name or fallback
 
 
+def reaction_value(reaction: Any) -> dict[str, Any]:
+    if isinstance(reaction, ReactionEmoji):
+        return {
+            "kind": "emoji",
+            "emoticon": reaction.emoticon,
+            "custom_emoji_document_id": None,
+        }
+    if isinstance(reaction, ReactionCustomEmoji):
+        return {
+            "kind": "custom_emoji",
+            "emoticon": None,
+            "custom_emoji_document_id": str(reaction.document_id),
+        }
+    if isinstance(reaction, ReactionPaid):
+        return {
+            "kind": "paid",
+            "emoticon": None,
+            "custom_emoji_document_id": None,
+        }
+    if isinstance(reaction, ReactionEmpty):
+        return {
+            "kind": "empty",
+            "emoticon": None,
+            "custom_emoji_document_id": None,
+        }
+    return {
+        "kind": type(reaction).__name__ if reaction else "unknown",
+        "emoticon": None,
+        "custom_emoji_document_id": None,
+    }
+
+
+def reaction_key(row: dict[str, Any]) -> tuple[str, str | None, str | None]:
+    return (row["kind"], row["emoticon"], row["custom_emoji_document_id"])
+
+
+def peer_id_value(peer: Any) -> int | None:
+    if isinstance(peer, PeerUser):
+        return peer.user_id
+    if isinstance(peer, PeerChat):
+        return -peer.chat_id
+    if isinstance(peer, PeerChannel):
+        return utils.get_peer_id(peer)
+    return None
+
+
+def message_reactions(message: Any) -> dict[str, Any]:
+    reactions = message.reactions
+    if not reactions:
+        return {
+            "counts": [],
+            "recent": [],
+            "recent_complete": False,
+        }
+
+    counts = []
+    for index, item in enumerate(reactions.results or []):
+        value = reaction_value(item.reaction)
+        counts.append({
+            "index": index,
+            **value,
+            "count": item.count,
+            "chosen_order": item.chosen_order,
+        })
+
+    recent = []
+    for index, item in enumerate(reactions.recent_reactions or []):
+        value = reaction_value(item.reaction)
+        recent.append({
+            "index": index,
+            "reactor_peer_id": peer_id_value(item.peer_id),
+            **value,
+            "date": item.date.isoformat() if item.date else None,
+            "big": bool(item.big),
+            "unread": bool(item.unread),
+            "my": bool(item.my),
+        })
+
+    remaining = {reaction_key(count): count["count"] for count in counts}
+    for item in recent:
+        key = reaction_key(item)
+        if key in remaining:
+            remaining[key] -= 1
+    return {
+        "counts": counts,
+        "recent": recent,
+        "recent_complete": bool(counts) and all(count == 0 for count in remaining.values()),
+    }
+
+
 def chat_row(entity: Any, dialog: Any | None, order: int | None, synced_at: str) -> dict[str, Any]:
     message = getattr(dialog, "message", None) if dialog else None
     return {
@@ -346,7 +480,13 @@ def upsert_chat(db: sqlite3.Connection, row: dict[str, Any]) -> None:
     ))
 
 
-def message_row(chat_peer_id: int, message: Any, attachments: list[dict[str, Any]], fetched_at: str) -> dict[str, Any]:
+def message_row(
+    chat_peer_id: int,
+    message: Any,
+    attachments: list[dict[str, Any]],
+    reactions: dict[str, Any],
+    fetched_at: str,
+) -> dict[str, Any]:
     return {
         "chat_peer_id": chat_peer_id,
         "id": message.id,
@@ -358,6 +498,9 @@ def message_row(chat_peer_id: int, message: Any, attachments: list[dict[str, Any
         "post": bool(message.post),
         "reply_to_msg_id": message.reply_to_msg_id,
         "attachments": attachments,
+        "reaction_counts": reactions["counts"],
+        "recent_reactions": reactions["recent"],
+        "reactions_complete": reactions["recent_complete"],
         "fetched_at": fetched_at,
     }
 
@@ -422,6 +565,52 @@ def upsert_message(db: sqlite3.Connection, row: dict[str, Any]) -> None:
             attachment["path_source"],
             json.dumps(attachment, ensure_ascii=False),
         ))
+    db.execute(
+        "DELETE FROM message_reaction_counts WHERE chat_peer_id = ? AND message_id = ?",
+        (row["chat_peer_id"], row["id"]),
+    )
+    for reaction in row["reaction_counts"]:
+        db.execute("""
+            INSERT INTO message_reaction_counts (
+                chat_peer_id, message_id, idx, kind, emoticon,
+                custom_emoji_document_id, count, chosen_order, normalized_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            row["chat_peer_id"],
+            row["id"],
+            reaction["index"],
+            reaction["kind"],
+            reaction["emoticon"],
+            reaction["custom_emoji_document_id"],
+            reaction["count"],
+            reaction["chosen_order"],
+            json.dumps(reaction, ensure_ascii=False),
+        ))
+    db.execute(
+        "DELETE FROM message_recent_reactions WHERE chat_peer_id = ? AND message_id = ?",
+        (row["chat_peer_id"], row["id"]),
+    )
+    for reaction in row["recent_reactions"]:
+        db.execute("""
+            INSERT INTO message_recent_reactions (
+                chat_peer_id, message_id, idx, reactor_peer_id, reaction_kind,
+                emoticon, custom_emoji_document_id, date, big, unread, my,
+                normalized_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            row["chat_peer_id"],
+            row["id"],
+            reaction["index"],
+            reaction["reactor_peer_id"],
+            reaction["kind"],
+            reaction["emoticon"],
+            reaction["custom_emoji_document_id"],
+            reaction["date"],
+            int(reaction["big"]),
+            int(reaction["unread"]),
+            int(reaction["my"]),
+            json.dumps(reaction, ensure_ascii=False),
+        ))
 
 
 async def sync_chats(args: argparse.Namespace) -> dict[str, Any]:
@@ -465,7 +654,13 @@ async def sync_messages(args: argparse.Namespace) -> dict[str, Any]:
                 args.local_files_dir,
                 args.local_files_dir_source,
             )
-            upsert_message(db, message_row(peer_id, message, attachments, fetched_at))
+            upsert_message(db, message_row(
+                peer_id,
+                message,
+                attachments,
+                message_reactions(message),
+                fetched_at,
+            ))
             count += 1
         db.execute(
             "INSERT OR REPLACE INTO sync_state(key, value) VALUES (?, ?)",
@@ -552,6 +747,20 @@ def message_from_db(db: sqlite3.Connection, chat_peer_id: int, row: sqlite3.Row)
         WHERE chat_peer_id = ? AND message_id = ?
         ORDER BY idx ASC
     """, (chat_peer_id, row["id"])).fetchall()
+    reaction_counts = db.execute("""
+        SELECT idx, kind, emoticon, custom_emoji_document_id, count, chosen_order
+        FROM message_reaction_counts
+        WHERE chat_peer_id = ? AND message_id = ?
+        ORDER BY idx ASC
+    """, (chat_peer_id, row["id"])).fetchall() if table_exists(db, "message_reaction_counts") else []
+    recent_reactions = db.execute("""
+        SELECT idx, reactor_peer_id, reaction_kind, emoticon,
+            custom_emoji_document_id, date, big, unread, my
+        FROM message_recent_reactions
+        WHERE chat_peer_id = ? AND message_id = ?
+        ORDER BY idx ASC
+    """, (chat_peer_id, row["id"])).fetchall() if table_exists(db, "message_recent_reactions") else []
+    reactions_complete = reactions_are_complete(reaction_counts, recent_reactions)
     return {
         "id": row["id"],
         "date": row["date"],
@@ -577,7 +786,53 @@ def message_from_db(db: sqlite3.Connection, chat_peer_id: int, row: sqlite3.Row)
             "download_error": attachment["download_error"],
             "path_source": attachment["path_source"],
         } for attachment in attachments],
+        "reaction_counts": [{
+            "index": reaction["idx"],
+            "kind": reaction["kind"],
+            "emoticon": reaction["emoticon"],
+            "custom_emoji_document_id": string_or_none(reaction["custom_emoji_document_id"]),
+            "count": reaction["count"],
+            "chosen_order": reaction["chosen_order"],
+        } for reaction in reaction_counts],
+        "recent_reactions": [{
+            "index": reaction["idx"],
+            "reactor_peer_id": reaction["reactor_peer_id"],
+            "kind": reaction["reaction_kind"],
+            "emoticon": reaction["emoticon"],
+            "custom_emoji_document_id": string_or_none(reaction["custom_emoji_document_id"]),
+            "date": reaction["date"],
+            "big": bool(reaction["big"]),
+            "unread": bool(reaction["unread"]),
+            "my": bool(reaction["my"]),
+        } for reaction in recent_reactions],
+        "reactions_complete": reactions_complete,
     }
+
+
+def reactions_are_complete(
+    reaction_counts: list[sqlite3.Row],
+    recent_reactions: list[sqlite3.Row],
+) -> bool:
+    remaining = {
+        (row["kind"], row["emoticon"], row["custom_emoji_document_id"]): row["count"]
+        for row in reaction_counts
+    }
+    for row in recent_reactions:
+        key = (row["reaction_kind"], row["emoticon"], row["custom_emoji_document_id"])
+        if key in remaining:
+            remaining[key] -= 1
+    return bool(remaining) and all(count == 0 for count in remaining.values())
+
+
+def string_or_none(value: Any) -> str | None:
+    return None if value is None else str(value)
+
+
+def table_exists(db: sqlite3.Connection, table: str) -> bool:
+    return db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table,),
+    ).fetchone() is not None
 
 
 def cache_status(args: argparse.Namespace) -> dict[str, Any]:
