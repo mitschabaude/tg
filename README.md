@@ -8,6 +8,8 @@ Own code is TypeScript. Python/other tools may still be used behind a small boun
 
 ## Setup
 
+Requires Node `>=23.6.0` for native TypeScript stripping, plus Python 3 with `venv` support.
+
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
@@ -17,15 +19,24 @@ npm link
 
 `npm link` installs the `tg` command globally as a symlink to this checkout. Keep this checkout and its `.venv` in place; the CLI uses the repo-local Python environment.
 
-Requires a Node version with native TypeScript stripping support.
-
 ## Auth Bootstrap
 
 ```bash
 tg auth bootstrap
 ```
 
-By default this reads from the snap Telegram Desktop `tdata` path through a snapshot under `tmp/`, uses the Desktop authorization once to approve a QR-login token, and stores a separate Telethon session under `data/sessions/`. It also stores session metadata such as Telegram Desktop's effective downloads directory.
+`tg auth bootstrap` looks for Telegram Desktop `tdata` in common Linux and macOS locations. If detection fails, pass the path explicitly:
+
+```bash
+tg auth bootstrap --tdata ~/.local/share/TelegramDesktop/tdata
+tg auth bootstrap --tdata ~/.var/app/org.telegram.desktop/data/TelegramDesktop/tdata
+tg auth bootstrap --tdata ~/snap/telegram-desktop/current/.local/share/TelegramDesktop/tdata
+tg auth bootstrap --tdata ~/Library/Application\ Support/Telegram\ Desktop/tdata
+```
+
+The path must point at the `tdata` directory itself, not its parent `TelegramDesktop` directory.
+
+Bootstrap copies `tdata` through a snapshot under `tmp/`, uses the Desktop authorization once to approve a QR-login token, and stores a separate Telethon session under `data/sessions/`. It also stores session metadata such as Telegram Desktop's effective downloads directory.
 
 This is intentionally different from directly reusing Telegram Desktop's auth key. The agent session should be a separate server-side authorization from Telegram Desktop, not a shared-auth session.
 

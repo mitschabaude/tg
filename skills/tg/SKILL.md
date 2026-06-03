@@ -15,7 +15,7 @@ If `tg` is missing, run from the repo:
 npm link
 ```
 
-The command uses this checkout's repo-local `.venv`.
+The command uses this checkout's repo-local `.venv`. Setup requires Node `>=23.6.0` and Python 3 with `venv` support.
 
 ## Bootstrap
 
@@ -25,7 +25,7 @@ Only needed if no agent session exists:
 tg auth bootstrap
 ```
 
-This snapshots Telegram Desktop `tdata`, uses the Desktop authorization once to approve a QR-login token, and stores a separate agent session.
+This snapshots Telegram Desktop `tdata`, uses the Desktop authorization once to approve a QR-login token, and stores a separate agent session. It auto-detects common Linux and macOS `tdata` paths; if that fails, pass the `tdata` directory explicitly with `--tdata PATH`.
 
 ## Sync
 
