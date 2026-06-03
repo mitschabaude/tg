@@ -33,7 +33,12 @@ type AuthBootstrapOptions = {
   keepSnapshot: boolean;
 };
 
-const defaultTdata = "~/snap/telegram-desktop/current/.local/share/TelegramDesktop/tdata";
+export const tdataCandidates = [
+  "~/snap/telegram-desktop/current/.local/share/TelegramDesktop/tdata",
+  "~/.local/share/TelegramDesktop/tdata",
+  "~/.var/app/org.telegram.desktop/data/TelegramDesktop/tdata",
+  "~/Library/Application Support/Telegram Desktop/tdata",
+];
 
 export function runAuthBootstrap(args: string[], usage: () => never): void {
   const options = parseAuthBootstrapOptions(args, usage);
@@ -73,7 +78,7 @@ export function runAuthBootstrap(args: string[], usage: () => never): void {
 }
 
 function parseAuthBootstrapOptions(args: string[], usage: () => never): AuthBootstrapOptions {
-  let tdata = defaultTdata;
+  let tdata: string | undefined;
   let sessionName = "default";
   let passcode: string | undefined;
   let password: string | undefined;
@@ -107,12 +112,29 @@ function parseAuthBootstrapOptions(args: string[], usage: () => never): AuthBoot
   }
 
   return {
-    tdata: resolve(expandHome(tdata)),
+    tdata: resolveTdataPath(tdata),
     sessionName: sanitizeSessionName(sessionName),
     passcode,
     password,
     keepSnapshot,
   };
+}
+
+function resolveTdataPath(value: string | undefined): string {
+  if (value) {
+    return resolve(expandHome(value));
+  }
+  const found = expandedTdataCandidates().find((candidate) => existsSync(candidate));
+  if (found) {
+    return found;
+  }
+  console.error("could not find Telegram Desktop tdata automatically");
+  console.error("pass it explicitly, for example: tg auth bootstrap --tdata PATH");
+  console.error("checked:");
+  for (const candidate of expandedTdataCandidates()) {
+    console.error(`  ${candidate}`);
+  }
+  process.exit(1);
 }
 
 function readValue(args: string[], index: number, usage: () => never): string {
@@ -134,12 +156,18 @@ function sanitizeSessionName(name: string): string {
 function ensureReadableTdata(path: string): void {
   if (!existsSync(path)) {
     console.error(`tdata path does not exist: ${path}`);
+    console.error("pass the Telegram Desktop tdata directory with: tg auth bootstrap --tdata PATH");
     process.exit(1);
   }
   if (!existsSync(join(path, "key_datas"))) {
     console.error(`not a Telegram Desktop tdata directory: ${path}`);
+    console.error("expected a tdata directory containing key_datas; do not pass the parent TelegramDesktop directory");
     process.exit(1);
   }
+}
+
+function expandedTdataCandidates(): string[] {
+  return tdataCandidates.map((candidate) => resolve(expandHome(candidate)));
 }
 
 function ensurePrivateDir(path: string): void {

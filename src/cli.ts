@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runAuthBootstrap } from "./commands/authBootstrap.ts";
+import { runAuthBootstrap, tdataCandidates } from "./commands/authBootstrap.ts";
 import { runCacheStatus } from "./commands/cache.ts";
 import { runChatsList } from "./commands/chats.ts";
 import { runMessagesList } from "./commands/messages.ts";
@@ -15,8 +15,8 @@ function usage(): never {
   tg messages list --chat CHAT [--session NAME] [--limit N] [--offset N] [--json]
   tg cache status [--session NAME] [--json]
 
-Default tdata path:
-  ~/snap/telegram-desktop/current/.local/share/TelegramDesktop/tdata`);
+Common tdata paths:
+${tdataCandidates.map((path) => `  ${path}`).join("\n")}`);
   process.exit(2);
 }
 
