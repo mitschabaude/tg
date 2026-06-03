@@ -60,12 +60,15 @@ For `--chat`, use the canonical `peer_id` printed by `tg chats list`. Do not dro
 
 For `messages list`, offset is zero-based from newest message first: `--offset 100 --limit 100` returns messages 100 through 199.
 
-## Attachments
+## Plain Output
 
-Plain text message output renders known local attachments compactly:
+Plain text message output is block-formatted for terminal reading: sender and time on the first line, wrapped message text below, then attachments and reactions as separate metadata lines. For example:
 
 ```text
-[pdf: /path/to/Telegram Desktop/example.pdf (404 KiB)]
+Alex Example (@alex)  Jun 3, 12:45  #15005
+  Here is the report including client response for the latest fix round!
+attachment: pdf report.pdf (469 KiB)
+reactions: Sam Example (@sam) 👍
 ```
 
 Use `--json` for full attachment metadata such as MIME type, Telegram file id, dimensions, download status, and `path_source`.
