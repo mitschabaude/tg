@@ -62,7 +62,7 @@ The cache is sensitive account data. Sync creates `data/cache/` with `0700` perm
 
 For `--chat`, use the canonical `peer_id` printed by `tg chats list`. Do not drop the minus sign: private/group peer ids can be negative, and the positive Telegram object id is not accepted as an alias.
 
-For `messages list`, offset is zero-based from newest message first: `--offset 100 --limit 100` returns messages 100 through 199. `chats list` also accepts `--offset` for paging cached dialog results.
+Offsets are zero-based and counted from newest to oldest. For example, `messages list --offset 100 --limit 100` returns cached messages 100 through 199, and `sync messages --offset 100 --limit 100` fetches the same window from Telegram. `chats list` also accepts `--offset` for paging cached dialog results.
 
 Plain text message output is block-formatted for terminal reading: sender and time on the first line, wrapped message text below, then attachments and reactions as separate metadata lines. For example:
 

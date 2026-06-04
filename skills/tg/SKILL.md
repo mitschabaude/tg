@@ -5,17 +5,21 @@ description: Use the local Telegram CLI to inspect cached Telegram chats and mes
 
 # Telegram CLI
 
-Use the local `tg` command to access Telegram history. Reads are cache-only; network/API access only happens under `tg sync ...`.
+Use the local `tg` command to access Telegram history. It depends on Telegram Desktop being logged in on the same machine. Reads are cache-only; network/API access only happens under `tg sync ...`.
 
-## Setup Check
+## Setup
 
-If `tg` is missing, run from the repo:
+If `tg` is missing, clone and install it:
 
 ```bash
+git clone git@github.com:mitschabaude/tg.git
+cd tg
+uv sync
+npm install
 npm link
 ```
 
-The command uses this checkout's `uv` Python environment. Setup requires Node `>=23.6.0`, Python 3, and `uv`; run `uv sync` from the repo if Python dependencies are missing.
+Setup requires Node `>=23.6.0`, Python 3, and `uv`. `npm link` installs `tg` globally as a symlink to this checkout; keep the checkout in place.
 
 ## Bootstrap
 
@@ -25,40 +29,41 @@ Only needed if no agent session exists:
 tg auth bootstrap
 ```
 
-This snapshots Telegram Desktop `tdata`, uses the Desktop authorization once to approve a QR-login token, and stores a separate agent session. It auto-detects common Linux and macOS `tdata` paths; if that fails, pass the `tdata` directory explicitly with `--tdata PATH`.
+This snapshots Telegram Desktop `tdata`, uses the Desktop authorization once to approve a QR-login token, and stores a separate agent session. It auto-detects common Linux and macOS `tdata` paths; if that fails, pass the `tdata` directory explicitly:
 
-## Sync
+```bash
+tg auth bootstrap --tdata ~/.local/share/TelegramDesktop/tdata
+tg auth bootstrap --tdata ~/Library/Application\ Support/Telegram\ Desktop/tdata
+```
 
-Sync before reading. These commands may use the network:
+The path must point at the `tdata` directory itself, not its parent `TelegramDesktop` directory.
+
+This intentionally creates a separate server-side authorization instead of directly reusing TG Desktop's auth key, so sync operations do not affect the TG Desktop client state.
+
+## Sync and read chats/messages
+
+Sync once to get the latest chats and messages. After that, use the `chats` and `messages` read commands for fast local read from cached history.
 
 ```bash
 tg sync chats --limit 100
+tg chats list --limit 30
+
 tg sync messages --chat CHAT --limit 1000
 tg sync messages --chat CHAT --offset 100 --limit 100
 tg sync messages --chat CHAT --full
-```
-
-`sync messages --full --offset N` syncs all older messages after skipping the newest `N`. `--full` cannot be combined with `--limit`.
-
-## Read Cache
-
-These commands are local-only:
-
-```bash
-tg chats list --limit 30
-tg chats list --offset 30 --limit 30
 
 tg messages list --chat CHAT --limit 20
 tg messages list --chat CHAT --offset 100 --limit 100
-
 tg cache status
 ```
 
-Add `--json` to read commands when structured output is useful.
+`tg sync ...` commands use the network. `chats list`, `messages list`, and `cache status` are local-only cache reads.
 
-For `--chat`, use the canonical `peer_id` printed by `tg chats list`. Do not drop the minus sign: private/group peer ids can be negative, and the positive Telegram object id is not accepted as an alias.
+For `--chat`, use the canonical `peer_id` printed by `tg chats list`. Do not drop the minus sign: private/group peer ids can be negative.
 
-For `messages list`, offset is zero-based from newest message first: `--offset 100 --limit 100` returns messages 100 through 199.
+Offsets are zero-based and counted from newest to oldest. For example, `messages list --offset 100 --limit 100` returns cached messages 100 through 199, and `sync messages --offset 100 --limit 100` fetches the same window from Telegram. Default offset is 0.
+
+Add `--json` to read commands only when verbose structured output is useful (prefer the default, plain-text output).
 
 ## Plain Output
 
@@ -66,17 +71,13 @@ Plain text message output is block-formatted for terminal reading: sender and ti
 
 ```text
 Alex Example (@alex)  Jun 3, 12:45  #15005
-  Here is the report including client response for the latest fix round!
-attachment: pdf report.pdf (469 KiB)
+  Hey how are you? Here is the report I promised.
+attachment: pdf /path/to/Telegram Desktop/report.pdf (469 KiB)
 reactions: Sam Example (@sam) 👍
 ```
 
-Use `--json` for full attachment metadata such as MIME type, Telegram file id, dimensions, download status, and `path_source`.
+Plain text includes full local attachment paths and is the preferred, token-efficient format for reading messages, for both humans and agents.
 
-Message sync stores reaction counts and Telegram's embedded recent reactor list. Small reaction sets may include individual reactors; larger sets may only include aggregate counts.
+By comparison, `--json` is quite verbose. Use it when the output needs to be processed programmatically.
 
-Message output uses cached peer names and usernames for senders and reactors when available, with numeric peer ids as a fallback.
-
-## Safety
-
-Treat `tdata`, sessions, and `data/cache/*.sqlite` as sensitive account data. Do not write to production `tdata`. Use the bootstrapped separate agent session rather than directly reusing Telegram Desktop authorization.
+Message output uses cached peer names and usernames for senders and reactors when available, with numeric peer ids as a fallback. Re-syncing messages or chats fills in more peer metadata over time.
