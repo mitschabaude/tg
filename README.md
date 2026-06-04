@@ -2,13 +2,15 @@
 
 Local Telegram history access for agents.
 
-The goal is a local, read-only CLI/skill that lets an agent query Telegram history without interactive login. It bootstraps a separate API session from Telegram Desktop `tdata`, syncs selected history into a local SQLite cache, and serves read commands from that cache.
+The goal is a local, read-only CLI/skill that lets an agent query Telegram history without interactive login.
 
-Own code is TypeScript. Python/other tools may still be used behind a small boundary if they are the best way to import or convert Telegram Desktop session data.
+**Depends on Telegram Desktop being logged in on the same machine**. `tg` bootstraps a separate auth session from Telegram Desktop `tdata`, syncs selected history into a local SQLite cache, and serves read commands from that cache.
 
 ## Setup
 
 Requires Node `>=23.6.0` for native TypeScript stripping, plus Python 3 managed through `uv`.
+
+Clone this repository, then run:
 
 ```bash
 uv sync
@@ -28,8 +30,6 @@ tg auth bootstrap
 
 ```bash
 tg auth bootstrap --tdata ~/.local/share/TelegramDesktop/tdata
-tg auth bootstrap --tdata ~/.var/app/org.telegram.desktop/data/TelegramDesktop/tdata
-tg auth bootstrap --tdata ~/snap/telegram-desktop/current/.local/share/TelegramDesktop/tdata
 tg auth bootstrap --tdata ~/Library/Application\ Support/Telegram\ Desktop/tdata
 ```
 
@@ -37,17 +37,18 @@ The path must point at the `tdata` directory itself, not its parent `TelegramDes
 
 Bootstrap copies `tdata` through a snapshot under `tmp/`, uses the Desktop authorization once to approve a QR-login token, and stores a separate Telethon session under `data/sessions/`. It also stores session metadata such as Telegram Desktop's effective downloads directory.
 
-This is intentionally different from directly reusing Telegram Desktop's auth key. The agent session should be a separate server-side authorization from Telegram Desktop, not a shared-auth session.
+This is intentionally different from directly reusing TG Desktop's auth key. The agent session is a separate server-side authorization, so that sync operations don't mess with your TG Desktop client state.
 
 ## Sync And Read
 
 ```bash
 tg sync chats --limit 100
+tg chats list --limit 30
+
 tg sync messages --chat <peer-id-or-username> --limit 1000
 tg sync messages --chat <peer-id-or-username> --offset 100 --limit 100
 tg sync messages --chat <peer-id-or-username> --full
 
-tg chats list --limit 30
 tg messages list --chat <peer-id-or-username> --limit 20
 tg messages list --chat <peer-id-or-username> --offset 100 --limit 100
 tg cache status
@@ -57,8 +58,6 @@ Network/API access is explicit and only happens under `tg sync ...`. `chats list
 
 The cache is sensitive account data. Sync creates `data/cache/` with `0700` permissions and SQLite files with `0600` permissions. Pure read commands do not create or initialize a missing cache; they print the relevant `tg sync ...` hint instead.
 
-`sync messages --full --offset N` means sync all older messages after skipping the newest `N`. `--full` cannot be combined with `--limit`.
-
 For `--chat`, use the canonical `peer_id` printed by `tg chats list`. Do not drop the minus sign: private/group peer ids can be negative, and the positive Telegram object id is not accepted as an alias.
 
 For `messages list`, offset is zero-based from newest message first: `--offset 100 --limit 100` returns messages 100 through 199. `chats list` also accepts `--offset` for paging cached dialog results.
@@ -67,13 +66,13 @@ Plain text message output is block-formatted for terminal reading: sender and ti
 
 ```text
 Alex Example (@alex)  Jun 3, 12:45  #15005
-  Here is the report including client response for the latest fix round!
-attachment: pdf report.pdf (469 KiB)
+  Hey how are you? Here is the report I promised.
+attachment: pdf /path/to/Telegram Desktop/report.pdf (469 KiB)
 reactions: Sam Example (@sam) 👍
 ```
 
-Use `--json` for full attachment metadata such as MIME type, Telegram file id, dimensions, download status, and `path_source`.
+Plain text includes full local attachment paths and is the preferred, token-efficient format for reading messages, for both humans and agents.
 
-Message sync also stores reaction counts and Telegram's embedded recent reactor list. This mirrors Telegram Desktop's default message display: small reaction sets can include the individual reactors, while larger sets may only include aggregate counts unless Telegram includes recent reactor details in the message payload.
+By comparison, `--json` is quite verbose. Use it when the output needs to be processed programmatically.
 
 Message output uses cached peer names and usernames for senders and reactors when available, with numeric peer ids as a fallback. Re-syncing messages or chats fills in more peer metadata over time.
