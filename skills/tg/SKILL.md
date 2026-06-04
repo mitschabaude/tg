@@ -23,7 +23,13 @@ Setup requires Node `>=23.6.0`, Python 3, and `uv`. `npm link` installs `tg` glo
 
 ## Bootstrap
 
-Only needed if no agent session exists:
+Only needed if no agent session exists. Check by running a normal command first:
+
+```bash
+tg cache status
+```
+
+If it reports a missing session, bootstrap one:
 
 ```bash
 tg auth bootstrap
@@ -42,7 +48,7 @@ This intentionally creates a separate server-side authorization instead of direc
 
 ## Sync and read chats/messages
 
-Sync once to get the latest chats and messages. After that, use the `chats` and `messages` read commands for fast local read from cached history.
+Sync to get the latest chats and messages. After that, use the `chats` and `messages` read commands for fast local read from cached history.
 
 ```bash
 tg sync chats --limit 100
