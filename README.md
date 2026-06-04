@@ -10,9 +10,11 @@ The goal is a local, read-only CLI/skill that lets an agent query Telegram histo
 
 Requires Node `>=23.6.0` for native TypeScript stripping, plus Python 3 managed through `uv`.
 
-Clone this repository, then run:
+Clone this repository, then run install commands:
 
 ```bash
+git clone git@github.com:mitschabaude/tg.git
+cd tg
 uv sync
 npm install
 npm link
