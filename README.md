@@ -8,16 +8,15 @@ Own code is TypeScript. Python/other tools may still be used behind a small boun
 
 ## Setup
 
-Requires Node `>=23.6.0` for native TypeScript stripping, plus Python 3 with `venv` support.
+Requires Node `>=23.6.0` for native TypeScript stripping, plus Python 3 managed through `uv`.
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+uv sync
 npm install
 npm link
 ```
 
-`npm link` installs the `tg` command globally as a symlink to this checkout. Keep this checkout and its `.venv` in place; the CLI uses the repo-local Python environment.
+`npm link` installs the `tg` command globally as a symlink to this checkout. Keep this checkout in place; the CLI runs Python helpers through `uv`.
 
 ## Auth Bootstrap
 

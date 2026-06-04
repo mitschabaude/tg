@@ -1,19 +1,21 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { rootDir } from "./paths.ts";
 
 export function runJsonHelper<T>(script: string, args: string[]): T {
-  const python = join(rootDir, ".venv", "bin", "python");
-  if (!existsSync(python)) {
-    console.error("missing .venv; run: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt");
-    process.exit(1);
-  }
-
-  const result = spawnSync(python, [join(rootDir, script), ...args], {
+  const result = spawnSync("uv", ["run", "python", join(rootDir, script), ...args], {
     cwd: rootDir,
     encoding: "utf8",
   });
+
+  if (result.error) {
+    if (result.error.message.includes("ENOENT")) {
+      console.error("missing uv; install uv and run: uv sync");
+    } else {
+      console.error(result.error.message);
+    }
+    process.exit(1);
+  }
 
   if (result.status !== 0) {
     printHelperOutput(result.stdout, result.stderr);

@@ -15,7 +15,7 @@ If `tg` is missing, run from the repo:
 npm link
 ```
 
-The command uses this checkout's repo-local `.venv`. Setup requires Node `>=23.6.0` and Python 3 with `venv` support.
+The command uses this checkout's `uv` Python environment. Setup requires Node `>=23.6.0`, Python 3, and `uv`; run `uv sync` from the repo if Python dependencies are missing.
 
 ## Bootstrap
 
