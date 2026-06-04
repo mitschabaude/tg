@@ -1,6 +1,6 @@
 # tg
 
-Local Telegram history access for agents. Linux and Mac.
+Telegram read access for agents. Linux and Mac. No login dance.
 
 ![alt text](image-1.png)
 
