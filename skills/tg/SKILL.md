@@ -1,11 +1,11 @@
 ---
 name: tg
-description: Use the local Telegram CLI to inspect cached Telegram chats and messages. Use when asked to find, list, sync, or read Telegram history through the local `tg` command.
+description: Read Telegram chats and messages using `tg`. Use when asked to find, list, sync, or read Telegram history.
 ---
 
 # Telegram CLI
 
-Use the local `tg` command to access Telegram history. It depends on Telegram Desktop being logged in on the same machine. Reads are cache-only; network/API access only happens under `tg sync ...`.
+Use the `tg` command to access Telegram history. It depends on Telegram Desktop being logged in on the same machine.
 
 ## Setup
 
