@@ -4,8 +4,6 @@ Telegram read access for agents. Linux and Mac. No login dance.
 
 ![alt text](image-1.png)
 
-The goal is a local, read-only CLI/skill that lets an agent query Telegram history without interactive login.
-
 **Depends on Telegram Desktop being logged in on the same machine**. `tg` bootstraps a separate auth session from Telegram Desktop `tdata`, syncs selected history into a local SQLite cache, and serves read commands from that cache.
 
 ## Usage
