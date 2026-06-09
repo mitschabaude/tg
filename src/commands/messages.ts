@@ -8,6 +8,17 @@ type MessageRow = {
   sender_id: number | null;
   sender_title: string | null;
   sender_username: string | null;
+  fwd_from_peer_id: number | null;
+  fwd_from_title: string | null;
+  fwd_from_username: string | null;
+  fwd_from_name: string | null;
+  fwd_date: string | null;
+  fwd_channel_post: number | null;
+  fwd_post_author: string | null;
+  fwd_saved_from_peer_id: number | null;
+  fwd_saved_from_title: string | null;
+  fwd_saved_from_username: string | null;
+  fwd_saved_from_msg_id: number | null;
   text: string;
   out: boolean;
   post: boolean;
@@ -87,6 +98,10 @@ export function runMessagesList(args: string[], usage: () => never): void {
 function formatMessage(row: MessageRow): string {
   const lines = [formatHeader(row)];
   const width = messageWidth();
+  const forward = formatForward(row);
+  if (forward) {
+    lines.push(...wrapText(forward, width, ""));
+  }
   const text = row.text.trim();
   if (text) {
     lines.push(...wrapText(text, width, "  "));
@@ -98,6 +113,28 @@ function formatMessage(row: MessageRow): string {
     lines.push(...wrapText(reactions, width, ""));
   }
   return lines.join("\n");
+}
+
+function formatForward(row: MessageRow): string {
+  const forwardedFrom = formatForwardedPeer(row);
+  if (!forwardedFrom) {
+    return "";
+  }
+  const parts = [`${italic("forwarded from")} ${forwardedFrom}`];
+  if (row.fwd_channel_post) {
+    parts.push(`post #${row.fwd_channel_post}`);
+  }
+  return parts.join("  ");
+}
+
+function formatForwardedPeer(row: MessageRow): string {
+  if (row.fwd_from_peer_id || row.fwd_from_title || row.fwd_from_username) {
+    return formatPeer(row.fwd_from_peer_id, row.fwd_from_title, row.fwd_from_username);
+  }
+  if (row.fwd_from_name) {
+    return row.fwd_from_name;
+  }
+  return "";
 }
 
 function formatHeader(row: MessageRow): string {

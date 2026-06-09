@@ -69,9 +69,11 @@ def connect_read(db_path: str) -> sqlite3.Connection:
     path = Path(db_path)
     if not path.exists():
         raise RuntimeError("cache is empty; run: npm run tg -- sync chats")
-    db = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    db = sqlite3.connect(path)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys = ON")
+    ensure_schema(db)
+    migrate_schema(db)
     return db
 
 
@@ -107,6 +109,13 @@ def ensure_schema(db: sqlite3.Connection) -> None:
             date TEXT,
             edit_date TEXT,
             sender_id INTEGER,
+            fwd_from_peer_id INTEGER,
+            fwd_from_name TEXT,
+            fwd_date TEXT,
+            fwd_channel_post INTEGER,
+            fwd_post_author TEXT,
+            fwd_saved_from_peer_id INTEGER,
+            fwd_saved_from_msg_id INTEGER,
             text TEXT NOT NULL,
             out INTEGER NOT NULL,
             post INTEGER NOT NULL,
@@ -200,12 +209,25 @@ def migrate_schema(db: sqlite3.Connection) -> None:
     rename_column_if_exists(db, "chats", "raw_json", "normalized_json")
     rename_column_if_exists(db, "messages", "raw_json", "normalized_json")
     rename_column_if_exists(db, "attachments", "raw_json", "normalized_json")
+    add_column_if_missing(db, "messages", "fwd_from_peer_id", "INTEGER")
+    add_column_if_missing(db, "messages", "fwd_from_name", "TEXT")
+    add_column_if_missing(db, "messages", "fwd_date", "TEXT")
+    add_column_if_missing(db, "messages", "fwd_channel_post", "INTEGER")
+    add_column_if_missing(db, "messages", "fwd_post_author", "TEXT")
+    add_column_if_missing(db, "messages", "fwd_saved_from_peer_id", "INTEGER")
+    add_column_if_missing(db, "messages", "fwd_saved_from_msg_id", "INTEGER")
 
 
 def rename_column_if_exists(db: sqlite3.Connection, table: str, old: str, new: str) -> None:
     columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
     if old in columns and new not in columns:
         db.execute(f"ALTER TABLE {table} RENAME COLUMN {old} TO {new}")
+
+
+def add_column_if_missing(db: sqlite3.Connection, table: str, name: str, definition: str) -> None:
+    columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
+    if name not in columns:
+        db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
 
 
 def now_iso() -> str:
@@ -541,12 +563,20 @@ def message_row(
     reactions: dict[str, Any],
     fetched_at: str,
 ) -> dict[str, Any]:
+    forward = forward_row(message)
     return {
         "chat_peer_id": chat_peer_id,
         "id": message.id,
         "date": message.date.isoformat() if message.date else None,
         "edit_date": message.edit_date.isoformat() if getattr(message, "edit_date", None) else None,
         "sender_id": message.sender_id,
+        "fwd_from_peer_id": forward["from_peer_id"],
+        "fwd_from_name": forward["from_name"],
+        "fwd_date": forward["date"],
+        "fwd_channel_post": forward["channel_post"],
+        "fwd_post_author": forward["post_author"],
+        "fwd_saved_from_peer_id": forward["saved_from_peer_id"],
+        "fwd_saved_from_msg_id": forward["saved_from_msg_id"],
         "text": message.message or "",
         "out": bool(message.out),
         "post": bool(message.post),
@@ -559,16 +589,57 @@ def message_row(
     }
 
 
+def forward_row(message: Any) -> dict[str, Any]:
+    forward = getattr(message, "fwd_from", None)
+    if not forward:
+        return {
+            "from_peer_id": None,
+            "from_name": None,
+            "date": None,
+            "channel_post": None,
+            "post_author": None,
+            "saved_from_peer_id": None,
+            "saved_from_msg_id": None,
+        }
+    return {
+        "from_peer_id": peer_id_or_none(getattr(forward, "from_id", None)),
+        "from_name": getattr(forward, "from_name", None) or getattr(forward, "saved_from_name", None),
+        "date": forward.date.isoformat() if getattr(forward, "date", None) else None,
+        "channel_post": getattr(forward, "channel_post", None),
+        "post_author": getattr(forward, "post_author", None),
+        "saved_from_peer_id": peer_id_or_none(getattr(forward, "saved_from_peer", None)),
+        "saved_from_msg_id": getattr(forward, "saved_from_msg_id", None),
+    }
+
+
+def peer_id_or_none(peer: Any) -> int | None:
+    if peer is None:
+        return None
+    try:
+        return utils.get_peer_id(peer)
+    except (TypeError, ValueError):
+        return None
+
+
 def upsert_message(db: sqlite3.Connection, row: dict[str, Any]) -> None:
     db.execute("""
         INSERT INTO messages (
-            chat_peer_id, id, date, edit_date, sender_id, text, out, post,
+            chat_peer_id, id, date, edit_date, sender_id, fwd_from_peer_id,
+            fwd_from_name, fwd_date, fwd_channel_post, fwd_post_author,
+            fwd_saved_from_peer_id, fwd_saved_from_msg_id, text, out, post,
             reply_to_msg_id, fetched_at, normalized_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(chat_peer_id, id) DO UPDATE SET
             date = excluded.date,
             edit_date = excluded.edit_date,
             sender_id = excluded.sender_id,
+            fwd_from_peer_id = excluded.fwd_from_peer_id,
+            fwd_from_name = excluded.fwd_from_name,
+            fwd_date = excluded.fwd_date,
+            fwd_channel_post = excluded.fwd_channel_post,
+            fwd_post_author = excluded.fwd_post_author,
+            fwd_saved_from_peer_id = excluded.fwd_saved_from_peer_id,
+            fwd_saved_from_msg_id = excluded.fwd_saved_from_msg_id,
             text = excluded.text,
             out = excluded.out,
             post = excluded.post,
@@ -581,6 +652,13 @@ def upsert_message(db: sqlite3.Connection, row: dict[str, Any]) -> None:
         row["date"],
         row["edit_date"],
         row["sender_id"],
+        row["fwd_from_peer_id"],
+        row["fwd_from_name"],
+        row["fwd_date"],
+        row["fwd_channel_post"],
+        row["fwd_post_author"],
+        row["fwd_saved_from_peer_id"],
+        row["fwd_saved_from_msg_id"],
         row["text"],
         int(row["out"]),
         int(row["post"]),
@@ -763,7 +841,10 @@ def list_messages(args: argparse.Namespace) -> list[dict[str, Any]]:
     try:
         chat_peer_id = resolve_cached_chat(db, args.chat)
         rows = db.execute("""
-            SELECT id, date, sender_id, text, out, post, reply_to_msg_id
+            SELECT id, date, sender_id, fwd_from_peer_id, fwd_from_name,
+                fwd_date, fwd_channel_post, fwd_post_author,
+                fwd_saved_from_peer_id, fwd_saved_from_msg_id, text, out,
+                post, reply_to_msg_id
             FROM messages
             WHERE chat_peer_id = ?
             ORDER BY date DESC, id DESC
@@ -797,6 +878,8 @@ def resolve_cached_chat(db: sqlite3.Connection, value: str) -> int:
 
 def message_from_db(db: sqlite3.Connection, chat_peer_id: int, row: sqlite3.Row) -> dict[str, Any]:
     sender = peer_from_db(db, row["sender_id"])
+    forward_from = peer_from_db(db, row["fwd_from_peer_id"])
+    forward_saved_from = peer_from_db(db, row["fwd_saved_from_peer_id"])
     attachments = db.execute("""
         SELECT idx, kind, name, mime_type, size, ext, file_id, width, height,
             duration, path, downloaded, download_skipped, download_error, path_source
@@ -818,6 +901,17 @@ def message_from_db(db: sqlite3.Connection, chat_peer_id: int, row: sqlite3.Row)
         "sender_id": row["sender_id"],
         "sender_title": sender["title"] if sender else None,
         "sender_username": sender["username"] if sender else None,
+        "fwd_from_peer_id": row["fwd_from_peer_id"],
+        "fwd_from_title": forward_from["title"] if forward_from else row["fwd_from_name"],
+        "fwd_from_username": forward_from["username"] if forward_from else None,
+        "fwd_from_name": row["fwd_from_name"],
+        "fwd_date": row["fwd_date"],
+        "fwd_channel_post": row["fwd_channel_post"],
+        "fwd_post_author": row["fwd_post_author"],
+        "fwd_saved_from_peer_id": row["fwd_saved_from_peer_id"],
+        "fwd_saved_from_title": forward_saved_from["title"] if forward_saved_from else None,
+        "fwd_saved_from_username": forward_saved_from["username"] if forward_saved_from else None,
+        "fwd_saved_from_msg_id": row["fwd_saved_from_msg_id"],
         "text": row["text"],
         "out": bool(row["out"]),
         "post": bool(row["post"]),
