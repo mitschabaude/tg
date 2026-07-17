@@ -2,6 +2,26 @@ import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { rootDir } from "./paths.ts";
 
+export function runInteractiveHelper(script: string, args: string[]): void {
+  const result = spawnSync("uv", ["run", "python", join(rootDir, script), ...args], {
+    cwd: rootDir,
+    stdio: "inherit",
+  });
+
+  if (result.error) {
+    if (result.error.message.includes("ENOENT")) {
+      console.error("missing uv; install uv and run: uv sync");
+    } else {
+      console.error(result.error.message);
+    }
+    process.exit(1);
+  }
+
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+}
+
 export function runJsonHelper<T>(script: string, args: string[]): T {
   const result = spawnSync("uv", ["run", "python", join(rootDir, script), ...args], {
     cwd: rootDir,
