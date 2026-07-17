@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { runAuthBootstrap, tdataCandidates } from "./commands/authBootstrap.ts";
+import { runAuthLogin } from "./commands/authLogin.ts";
 import { runCacheStatus } from "./commands/cache.ts";
 import { runChatsList } from "./commands/chats.ts";
 import { runMessagesList } from "./commands/messages.ts";
@@ -8,6 +9,7 @@ import { runSyncChats, runSyncMessages } from "./commands/sync.ts";
 function usage(): never {
   console.error(`Usage:
   tg auth bootstrap [--tdata PATH] [--session NAME] [--passcode PASSCODE] [--password TELEGRAM_2FA_PASSWORD] [--keep-snapshot]
+  tg auth login [--session NAME] [--qr | --phone]
   tg sync chats [--session NAME] [--limit N]
   tg sync messages --chat CHAT [--session NAME] [--limit N] [--offset N]
   tg sync messages --chat CHAT [--session NAME] --full
@@ -24,6 +26,8 @@ const args = process.argv.slice(2);
 
 if (args[0] === "auth" && args[1] === "bootstrap") {
   runAuthBootstrap(args.slice(2), usage);
+} else if (args[0] === "auth" && args[1] === "login") {
+  runAuthLogin(args.slice(2), usage);
 } else if (args[0] === "sync" && args[1] === "chats") {
   runSyncChats(args.slice(2), usage);
 } else if (args[0] === "sync" && args[1] === "messages") {

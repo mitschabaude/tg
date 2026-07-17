@@ -4,4 +4,5 @@ version = "0.0.0"
 requires-python = ">=3.11"
 dependencies = [
   "opentele==1.15.1",
+  "qrcode>=8.2",
 ]
