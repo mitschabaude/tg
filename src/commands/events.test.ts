@@ -68,6 +68,15 @@ test("message events contain only a concise id and body", () => {
   assert.doesNotMatch(event.body, /MessageMediaWebPage|download_skipped/);
 });
 
+test("message events identify outgoing messages", () => {
+  const row = listenerRow("message");
+  row.message.out = true;
+
+  const event = formatEvent(row);
+
+  assert.match(event.body, /^Outgoing Telegram message\n/);
+});
+
 test("message events do not wrap long message text", () => {
   const row = listenerRow("message");
   row.message.text = "This message deliberately contains enough words to exceed the terminal formatter width without introducing line breaks in an event body.";

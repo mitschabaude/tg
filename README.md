@@ -22,7 +22,7 @@ After bootstrap, `tg sync` commands use the persistent client session to fetch c
 
 ## Live events
 
-`tg events listen --session NAME` keeps a Telegram connection open and writes one concise JSONL event for each incoming message. Before emitting an event, it updates the affected chat in the local cache: existing chats are synchronized from their newest cached message, while new chats receive the latest 100 messages of context.
+`tg events listen --session NAME` keeps a Telegram connection open and writes one concise JSONL event for each message. Before emitting an event, it updates the affected chat in the local cache: existing chats are synchronized from their newest cached message, while new chats receive the latest 100 messages of context.
 
 Reaction changes are cached as well. They produce events only when they affect messages sent by the logged-in user.
 

@@ -70,9 +70,10 @@ export function formatEvent(event: ListenerRow): { id: string; body: string } {
   const context = `Context is synced. Inspect with:\ntg messages list --chat ${event.chat.peer_id} --limit 20`;
 
   if (event.kind === "message") {
+    const heading = event.message.out ? "Outgoing Telegram message" : "Telegram message";
     return {
       id: `tg/message/${event.chat.peer_id}/${event.message.id}`,
-      body: `Telegram message\nChat: ${chat}\n\n${message}\n\n${context}`,
+      body: `${heading}\nChat: ${chat}\n\n${message}\n\n${context}`,
     };
   }
 

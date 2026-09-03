@@ -188,7 +188,8 @@ async def listen(args: argparse.Namespace) -> None:
             if reaction_state(current) != before:
                 emit("reaction", chat, current)
 
-    client.add_event_handler(on_message, events.NewMessage(incoming=True))
+    # No direction filter: callers receive both incoming and outgoing messages.
+    client.add_event_handler(on_message, events.NewMessage())
     client.add_event_handler(on_reaction, events.Raw(UpdateMessageReactions))
     await client.connect()
     try:
