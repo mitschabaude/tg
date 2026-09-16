@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatEvent, type ListenerRow } from "./events.ts";
+import { formatEvent, type MessageListenerRow } from "./events.ts";
 
-function listenerRow(kind: ListenerRow["kind"]): ListenerRow {
+function listenerRow(kind: MessageListenerRow["kind"]): MessageListenerRow {
   return {
     kind,
     chat: {
@@ -92,4 +92,10 @@ test("reaction events identify an empty current state", () => {
   assert.match(event.id, /^tg\/reaction\/-1002667675993\/400\/[0-9a-f]{16}$/);
   assert.match(event.body, /Telegram reaction update/);
   assert.match(event.body, /Current reactions: none/);
+});
+
+test("group join events are compact with optional inviter and stable ID", () => {
+  const row = { kind: "join" as const, id: "tg/join/-123/session", chat: {peer_id: -123, title: "Audit", username: null}, added_by: "Alice" };
+  assert.deepEqual(formatEvent(row), {id: row.id, body: "Joined Telegram group\nChat: Audit [-123]\nAdded by: Alice"});
+  assert.equal(formatEvent({...row, added_by: null}).body, "Joined Telegram group\nChat: Audit [-123]");
 });

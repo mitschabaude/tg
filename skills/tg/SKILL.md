@@ -91,3 +91,8 @@ Message output uses cached peer names and usernames for senders and reactors whe
 ## Live Events
 
 `tg events listen --session NAME` emits concise JSONL events for incoming and outgoing messages while keeping each affected chat current in the cache. It is a long-running command intended for a service supervisor. Reaction updates are cached and emitted only for messages sent by the logged-in user.
+
+Group-join events indicate that the logged-in account joined or was added to a group.
+The latest 100 accessible messages are synced before the event; read that history
+for context, since earlier messages may have become visible upon joining. Older
+history can be fetched with `tg sync messages` as usual.

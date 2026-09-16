@@ -14,10 +14,17 @@ type ChatRow = {
   username: string | null;
 };
 
-export type ListenerRow = {
+export type MessageListenerRow = {
   kind: "message" | "reaction";
   chat: ChatRow;
   message: MessageRow;
+};
+
+export type ListenerRow = MessageListenerRow | {
+  kind: "join";
+  id: string;
+  chat: ChatRow;
+  added_by: string | null;
 };
 
 export async function runEventsListen(
@@ -66,6 +73,13 @@ export async function runEventsListen(
 
 export function formatEvent(event: ListenerRow): { id: string; body: string } {
   const chat = formatChat(event.chat);
+  if (event.kind === "join") {
+    return { id: event.id, body: [
+      "Joined Telegram group",
+      `Chat: ${chat}`,
+      event.added_by ? `Added by: ${event.added_by}` : undefined,
+    ].filter(Boolean).join("\n") };
+  }
   const message = formatMessage(event.message, { wrap: false });
   const context = `Context is synced. Inspect with:\ntg messages list --chat ${event.chat.peer_id} --limit 20`;
 

@@ -26,6 +26,15 @@ After bootstrap, `tg sync` commands use the persistent client session to fetch c
 
 Reaction changes are cached as well. They produce events only when they affect messages sent by the logged-in user.
 
+Joining or being added to a group emits a compact group-join event, with the inviter
+when available. The latest 100 accessible messages are cached first, including
+history from before joining; they are context, not individual new-message events.
+Membership is reconciled on startup and every five minutes to detect groups gained
+while offline or without a service notification. The first run baselines existing
+groups without emitting them. A leave-and-rejoin entirely between checks may not
+be detectable if Telegram supplies no membership notification. This listener uses
+the existing stdout pipeline, which does not acknowledge durable downstream storage.
+
 The command is intended to run as a supervised service. Its stdout is the event stream and diagnostics go to stderr.
 
 > [!WARNING]

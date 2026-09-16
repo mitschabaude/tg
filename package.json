@@ -12,7 +12,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test src/commands/events.test.ts",
+    "test": "node --test src/commands/events.test.ts && uv run python -m unittest discover -s scripts -p 'test_*.py'",
     "tg": "node src/cli.ts"
   },
   "devDependencies": {
